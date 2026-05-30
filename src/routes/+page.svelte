@@ -180,7 +180,7 @@
 				<button
 					class="dm-toggle"
 					onclick={toggleDark}
-					aria-label="Toggle dark mode"
+					aria-pressed={isDark}
 				>
 					<span class:dm-active={!isDark}>☀ LIGHT</span>
 					<span class:dm-active={isDark}>☾ DARK</span>
@@ -239,7 +239,7 @@
 				</button>
 			{/each}
 			<div class="flex items-center gap-3 pt-1">
-				<button class="dm-toggle" onclick={toggleDark} aria-label="Toggle dark mode">
+				<button class="dm-toggle" onclick={toggleDark} aria-pressed={isDark}>
 					<span class:dm-active={!isDark}>☀ LIGHT</span>
 					<span class:dm-active={isDark}>☾ DARK</span>
 				</button>
@@ -255,6 +255,7 @@
 	{/if}
 </header>
 
+<main>
 <!-- HERO -->
 <section id="hero" class="min-h-screen flex flex-col justify-center px-6 pt-24 pb-16 max-w-6xl mx-auto">
 	<div class="max-w-3xl">
@@ -434,7 +435,7 @@
 					<p class="text-sm font-semibold mb-3" style="color: var(--c-muted);">{edu.year}</p>
 					<h3 class="text-lg font-bold leading-snug mb-2">{edu.degree}</h3>
 					<p class="text-sm" style="color: var(--c-muted);">{edu.institution}</p>
-					<p class="text-xs mt-1" style="color: var(--c-muted); opacity: 0.7;">{edu.location}</p>
+					<p class="text-xs mt-1" style="color: var(--c-muted);">{edu.location}</p>
 					{#if edu.note}
 						<span class="neo-tag mt-4 inline-block">{edu.note}</span>
 					{/if}
@@ -518,12 +519,14 @@
 	</div>
 </section>
 
+</main>
+
 <!-- FOOTER -->
 <footer class="py-8 px-6" style="border-top: 2px solid var(--c-ink);">
 	<div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
 		<p class="text-sm" style="color: var(--c-muted);">
 			© {new Date().getFullYear()} Etienne de Lange
 		</p>
-		<p class="text-xs" style="color: var(--c-muted); opacity: 0.6;">Built with SvelteKit · Tailwind CSS</p>
+		<p class="text-xs" style="color: var(--c-muted);">Built with SvelteKit · Tailwind CSS</p>
 	</div>
 </footer>
