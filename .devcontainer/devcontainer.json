@@ -27,6 +27,6 @@
       }
     }
   },
-  "postCreateCommand": "npm install -g @anthropic-ai/claude-code@2.1.158 && pnpm install",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
   "remoteUser": "node"
 }
