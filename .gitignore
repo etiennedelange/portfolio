@@ -1,0 +1,17 @@
+# SvelteKit
+.svelte-kit/
+build/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# pnpm
+.pnpm-store/
+
+# Editor
+.DS_Store
