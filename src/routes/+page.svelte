@@ -3,6 +3,9 @@
 	import { browser } from '$app/environment';
 	import DotGrid from '$lib/components/DotGrid.svelte';
 	import { applyTimePalette } from '$lib/timeTheme.js';
+	import { gameState } from '$lib/gameState';
+	import { countUp } from '$lib/actions/countUp';
+	import { stamp } from '$lib/actions/stamp';
 
 	let menuOpen = $state(false);
 	let scrolled = $state(false);
@@ -10,9 +13,29 @@
 	let testHour = $state<number | null>(null);
 	let sliderVisible = $state(false);
 	let grainOpacity = $state(0.35);
+	let portraitReady = $state(false);
+	let terminalOpen = $state(false);
+	let scrollProgress = $state(0);
+	let footerSecretVisible = $state(false);
+	let portraitMode = $state<0 | 1 | 2 | 3>(0);
+	let portraitCycled = $state(false);
+	let stampedSkills = $state(new Set<string>());
+	let logoTapCount = $state(0);
+	let logoTapTimer: ReturnType<typeof setTimeout> | null = null;
+	let logoMessage = $state('');
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.altKey && e.key === 't') sliderVisible = !sliderVisible;
+
+		const tag = (e.target as HTMLElement).tagName;
+		const editable = (e.target as HTMLElement).isContentEditable;
+		if (e.key === '/' && tag !== 'INPUT' && tag !== 'TEXTAREA' && !editable) {
+			e.preventDefault();
+			if (!terminalOpen) {
+				terminalOpen = true;
+				gameState.unlock('terminal_found');
+			}
+		}
 	}
 
 	const timeLabel = $derived(
@@ -30,6 +53,14 @@
 			applyTimePalette(new Date().getHours() + new Date().getMinutes() / 60, isDark);
 		}, 60_000);
 		return () => clearInterval(interval);
+	});
+
+	$effect(() => {
+		if (testHour !== null) gameState.unlock('time_lord');
+	});
+
+	$effect(() => {
+		document.body.style.overflow = terminalOpen ? 'hidden' : '';
 	});
 
 	const navItems = [
@@ -162,10 +193,41 @@
 	];
 
 	onMount(() => {
+		portraitReady = true;
+
+		// Console easter egg
+		console.log(
+			'%c╔══════════════════════════════════╗\n' +
+			"║   Hi, I'm Etienne de Lange       ║\n" +
+			'║   Software Engineer              ║\n' +
+			'╚══════════════════════════════════╝',
+			'color: #f5d90a; font-family: monospace; font-size: 13px;'
+		);
+		console.log(
+			'%cCurious about the source? Try pressing / anywhere.',
+			'color: #6b7280; font-size: 12px;'
+		);
+
+		// Time-based achievements
+		const hour = new Date().getHours();
+		if (hour === 0) gameState.unlock('night_owl');
+		if (hour === 16) gameState.unlock('golden_hour');
+
+		// Scroll listener
 		const handleScroll = () => {
 			scrolled = window.scrollY > 40;
+			const maxScroll = document.body.scrollHeight - window.innerHeight;
+			scrollProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+			if (
+				!footerSecretVisible &&
+				window.scrollY + window.innerHeight >= document.body.scrollHeight - 4
+			) {
+				footerSecretVisible = true;
+				gameState.unlock('deep_diver');
+			}
 		};
 		window.addEventListener('scroll', handleScroll, { passive: true });
+
 		return () => window.removeEventListener('scroll', handleScroll);
 	});
 
@@ -173,6 +235,40 @@
 		isDark = !isDark;
 		document.documentElement.classList.toggle('dark', isDark);
 		localStorage.setItem('theme', isDark ? 'dark' : 'light');
+		gameState.unlock('dark_knight');
+	}
+
+	function handleSkillStamp(skill: string) {
+		if (stampedSkills.has(skill)) return;
+		stampedSkills = new Set([...stampedSkills, skill]);
+		if (stampedSkills.size >= 5) gameState.unlock('skill_stamper');
+	}
+
+	function cyclePortrait() {
+		portraitMode = ((portraitMode + 1) % 4) as 0 | 1 | 2 | 3;
+		if (portraitMode === 0 && !portraitCycled) {
+			portraitCycled = true;
+			gameState.unlock('portrait_cycler');
+		}
+	}
+
+	function handleLogoClick(e: MouseEvent) {
+		logoTapCount++;
+		if (logoTapTimer) clearTimeout(logoTapTimer);
+		logoTapTimer = setTimeout(() => { logoTapCount = 0; }, 2000);
+
+		if (logoTapCount >= 5) {
+			e.preventDefault();
+			logoTapCount = 0;
+			clearTimeout(logoTapTimer!);
+			logoTapTimer = null;
+			gameState.unlock('logo_tap');
+			logoMessage = 'Loading…';
+			setTimeout(() => {
+				logoMessage = 'Still loading personality… just kidding.';
+				setTimeout(() => { logoMessage = ''; }, 2500);
+			}, 700);
+		}
 	}
 
 	function scrollTo(id: string) {
@@ -343,8 +439,8 @@
 						style="background-color: var(--c-accent); transform: translate(6px, 6px);"
 					></div>
 					<div class="portrait-frame w-56 xl:w-64">
-						<div class="portrait-duo">
-							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" />
+						<div class="portrait-duo" class:transitions-on={portraitReady}>
+							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
 						</div>
 						<div class="portrait-grain" style:opacity={grainOpacity}></div>
 						<div class="portrait-lines"></div>
@@ -427,8 +523,8 @@
 						style="background-color: var(--c-accent); transform: translate(5px, 5px);"
 					></div>
 					<div class="portrait-frame w-40">
-						<div class="portrait-duo">
-							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" />
+						<div class="portrait-duo" class:transitions-on={portraitReady}>
+							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
 						</div>
 						<div class="portrait-grain" style:opacity={grainOpacity}></div>
 						<div class="portrait-lines"></div>
@@ -705,6 +801,9 @@
 		display: block;
 		line-height: 0;
 		background-color: var(--c-accent);
+	}
+
+	.portrait-duo.transitions-on {
 		transition: background-color 0.6s ease;
 	}
 
