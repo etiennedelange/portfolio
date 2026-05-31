@@ -1,9 +1,35 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
+	import DotGrid from '$lib/components/DotGrid.svelte';
+	import { applyTimePalette } from '$lib/timeTheme.js';
 
 	let menuOpen = $state(false);
 	let scrolled = $state(false);
-	let isDark = $state(false);
+	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
+	let testHour = $state<number | null>(null);
+	let sliderVisible = $state(false);
+
+	function handleKeydown(e: KeyboardEvent) {
+		if (e.altKey && e.key === 't') sliderVisible = !sliderVisible;
+	}
+
+	const timeLabel = $derived(
+		testHour === null
+			? 'Real time'
+			: `${String(Math.floor(testHour)).padStart(2, '0')}:${String(Math.round((testHour - Math.floor(testHour)) * 60)).padStart(2, '0')}`
+	);
+
+	$effect(() => {
+		const hour = testHour ?? (new Date().getHours() + new Date().getMinutes() / 60);
+		applyTimePalette(hour, isDark);
+
+		if (testHour !== null) return;
+		const interval = setInterval(() => {
+			applyTimePalette(new Date().getHours() + new Date().getMinutes() / 60, isDark);
+		}, 60_000);
+		return () => clearInterval(interval);
+	});
 
 	const navItems = [
 		{ id: 'about', label: 'About' },
@@ -135,8 +161,6 @@
 	];
 
 	onMount(() => {
-		isDark = document.documentElement.classList.contains('dark');
-
 		const handleScroll = () => {
 			scrolled = window.scrollY > 40;
 		};
@@ -272,59 +296,62 @@
 
 <main>
 <!-- HERO -->
-<section id="hero" class="min-h-screen flex flex-col justify-center px-6 pt-24 pb-16 max-w-6xl mx-auto">
-	<div class="max-w-3xl">
-		<p class="text-sm font-semibold uppercase tracking-widest mb-6" style="color: var(--c-muted);">
-			Software Engineer · Port Elizabeth, South Africa
-		</p>
+<section id="hero" class="relative min-h-screen overflow-hidden">
+	<DotGrid testHour={testHour ?? undefined} />
+	<div class="relative z-10 flex flex-col justify-center px-6 pt-24 pb-16 max-w-6xl mx-auto min-h-screen">
+		<div class="max-w-3xl">
+			<p class="text-sm font-semibold uppercase tracking-widest mb-6" style="color: var(--c-muted);">
+				Software Engineer · Port Elizabeth, South Africa
+			</p>
 
-		<h1 class="text-6xl sm:text-7xl md:text-8xl font-bold leading-none tracking-tight mb-6">
-			Etienne<br />
-			<span class="relative inline-block">
-				de Lange
-				<span
-					class="absolute -bottom-2 left-0 right-0 h-4 -z-10"
-					style="background-color: var(--c-accent);"
-				></span>
-			</span>
-		</h1>
+			<h1 class="text-6xl sm:text-7xl md:text-8xl font-bold leading-none tracking-tight mb-6">
+				Etienne<br />
+				<span class="relative inline-block">
+					de Lange
+					<span
+						class="absolute -bottom-2 left-0 right-0 h-4 -z-10"
+						style="background-color: var(--c-accent);"
+					></span>
+				</span>
+			</h1>
 
-		<p class="text-lg md:text-xl max-w-xl leading-relaxed mt-8 mb-10" style="color: var(--c-muted);">
-			15+ years crafting robust software — from conveyancing systems and property apps
-			to microservices on Azure and agentic AI engineering. I take pride in every line of code.
-		</p>
+			<p class="text-lg md:text-xl max-w-xl leading-relaxed mt-8 mb-10" style="color: var(--c-muted);">
+				15+ years crafting robust software — from conveyancing systems and property apps
+				to microservices on Azure and agentic AI engineering. I take pride in every line of code.
+			</p>
 
-		<div class="flex flex-wrap gap-4">
-			<button
-				onclick={() => scrollTo('experience')}
-				class="neo-btn px-6 py-3 font-semibold"
-				style="background-color: var(--c-accent); color: #0a0a0a;"
-			>
-				View Experience
-			</button>
-			<button
-				onclick={() => scrollTo('contact')}
-				class="neo-btn px-6 py-3 font-semibold"
-				style="background-color: var(--c-bg);"
-			>
-				Get in touch
-			</button>
-		</div>
-	</div>
-
-	<!-- Stats row -->
-	<div class="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6">
-		{#each [
-			{ value: '15+', label: 'Years experience' },
-			{ value: '6', label: 'Companies' },
-			{ value: '2', label: 'Certifications' },
-			{ value: 'Cum Laude', label: 'Graduate' }
-		] as stat (stat.label)}
-			<div class="pt-4" style="border-top: 2px solid var(--c-ink);">
-				<p class="text-3xl font-bold">{stat.value}</p>
-				<p class="text-sm mt-1" style="color: var(--c-muted);">{stat.label}</p>
+			<div class="flex flex-wrap gap-4">
+				<button
+					onclick={() => scrollTo('experience')}
+					class="neo-btn px-6 py-3 font-semibold"
+					style="background-color: var(--c-accent); color: #0a0a0a;"
+				>
+					View Experience
+				</button>
+				<button
+					onclick={() => scrollTo('contact')}
+					class="neo-btn px-6 py-3 font-semibold"
+					style="background-color: var(--c-bg);"
+				>
+					Get in touch
+				</button>
 			</div>
-		{/each}
+		</div>
+
+		<!-- Stats row -->
+		<div class="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6">
+			{#each [
+				{ value: '15+', label: 'Years experience' },
+				{ value: '6', label: 'Companies' },
+				{ value: '2', label: 'Certifications' },
+				{ value: 'Cum Laude', label: 'Graduate' }
+			] as stat (stat.label)}
+				<div class="pt-4" style="border-top: 2px solid var(--c-ink);">
+					<p class="text-3xl font-bold">{stat.value}</p>
+					<p class="text-sm mt-1" style="color: var(--c-muted);">{stat.label}</p>
+				</div>
+			{/each}
+		</div>
 	</div>
 </section>
 
@@ -540,6 +567,37 @@
 </section>
 
 </main>
+
+<svelte:window onkeydown={handleKeydown} />
+
+<!-- TIME-OF-DAY DEV SLIDER -->
+{#if sliderVisible}
+<div
+	style="position:fixed;bottom:1.5rem;right:1.5rem;z-index:9999;
+	       background:var(--c-bg);border:2px solid var(--c-ink);
+	       padding:0.75rem 1rem;display:flex;flex-direction:column;gap:0.5rem;
+	       min-width:220px;box-shadow:3px 3px 0 var(--c-ink);"
+>
+	<div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;">
+		<span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--c-muted);">Time preview</span>
+		<span style="font-size:0.75rem;font-weight:700;font-family:monospace;color:var(--c-ink);">{timeLabel}</span>
+	</div>
+	<input
+		type="range" min="0" max="23.99" step="0.25"
+		value={testHour ?? new Date().getHours() + new Date().getMinutes() / 60}
+		oninput={(e) => { testHour = parseFloat((e.target as HTMLInputElement).value); }}
+		style="width:100%;accent-color:var(--c-accent);"
+	/>
+	<button
+		onclick={() => { testHour = null; }}
+		style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;
+		       color:var(--c-muted);background:none;border:none;cursor:pointer;text-align:left;padding:0;"
+	>
+		{testHour !== null ? '↩ Reset to real time' : '← drag to override'}
+	</button>
+</div>
+
+{/if}
 
 <!-- FOOTER -->
 <footer class="py-8 px-6" style="border-top: 2px solid var(--c-ink);">

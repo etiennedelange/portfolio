@@ -67,8 +67,8 @@ body {
 	background-color: var(--c-bg);
 	color: var(--c-ink);
 	transition:
-		background-color 0.25s ease,
-		color 0.25s ease;
+		background-color 0.6s ease,
+		color 0.6s ease;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }
@@ -161,6 +161,17 @@ body {
 
 .dm-active {
 	background-color: var(--c-accent);
+	color: #0a0a0a !important;
+}
+
+/* Pre-hydration toggle fix: html.dark is set by the inline script before first paint,
+   so these rules make the correct button appear active before Svelte JS runs. */
+html.dark .dm-toggle span:first-child {
+	background-color: transparent !important;
+	color: var(--c-muted) !important;
+}
+html.dark .dm-toggle span:last-child {
+	background-color: var(--c-accent) !important;
 	color: #0a0a0a !important;
 }
 
