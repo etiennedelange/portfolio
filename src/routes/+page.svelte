@@ -423,6 +423,7 @@
 			</div>
 		</div>
 	{/if}
+	<div class="scroll-progress" style:width="{scrollProgress * 100}%"></div>
 </header>
 
 <main>
@@ -498,7 +499,7 @@
 				{ value: 'Cum Laude', label: 'Graduate' }
 			] as stat (stat.label)}
 				<div class="pt-4" style="border-top: 2px solid var(--c-ink);">
-					<p class="text-3xl font-bold">{stat.value}</p>
+					<p class="text-3xl font-bold" use:countUp={{ target: stat.value }}>{stat.value}</p>
 					<p class="text-sm mt-1" style="color: var(--c-muted);">{stat.label}</p>
 				</div>
 			{/each}
