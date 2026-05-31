@@ -221,9 +221,24 @@
 					class="dm-toggle"
 					onclick={toggleDark}
 					aria-pressed={isDark}
+					aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
 				>
-					<span class:dm-active={!isDark}>☀ LIGHT</span>
-					<span class:dm-active={isDark}>☾ DARK</span>
+					<span class="theme-icon" class:is-dark={isDark} aria-hidden="true">
+						<svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<circle cx="12" cy="12" r="4.5"/>
+							<line x1="12" y1="2" x2="12" y2="5"/>
+							<line x1="12" y1="19" x2="12" y2="22"/>
+							<line x1="4.22" y1="4.22" x2="6.34" y2="6.34"/>
+							<line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/>
+							<line x1="2" y1="12" x2="5" y2="12"/>
+							<line x1="19" y1="12" x2="22" y2="12"/>
+							<line x1="4.22" y1="19.78" x2="6.34" y2="17.66"/>
+							<line x1="17.66" y1="6.34" x2="19.78" y2="4.22"/>
+						</svg>
+						<svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+						</svg>
+					</span>
 				</button>
 			</li>
 			<li>
@@ -279,9 +294,28 @@
 				</button>
 			{/each}
 			<div class="flex items-center gap-3 pt-1">
-				<button class="dm-toggle" onclick={toggleDark} aria-pressed={isDark}>
-					<span class:dm-active={!isDark}>☀ LIGHT</span>
-					<span class:dm-active={isDark}>☾ DARK</span>
+				<button
+					class="dm-toggle"
+					onclick={toggleDark}
+					aria-pressed={isDark}
+					aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+				>
+					<span class="theme-icon" class:is-dark={isDark} aria-hidden="true">
+						<svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+							<circle cx="12" cy="12" r="4.5"/>
+							<line x1="12" y1="2" x2="12" y2="5"/>
+							<line x1="12" y1="19" x2="12" y2="22"/>
+							<line x1="4.22" y1="4.22" x2="6.34" y2="6.34"/>
+							<line x1="17.66" y1="17.66" x2="19.78" y2="19.78"/>
+							<line x1="2" y1="12" x2="5" y2="12"/>
+							<line x1="19" y1="12" x2="22" y2="12"/>
+							<line x1="4.22" y1="19.78" x2="6.34" y2="17.66"/>
+							<line x1="17.66" y1="6.34" x2="19.78" y2="4.22"/>
+						</svg>
+						<svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+						</svg>
+					</span>
 				</button>
 				<a
 					href="mailto:etienne.de.lange1@gmail.com"
@@ -300,7 +334,24 @@
 <section id="hero" class="relative min-h-screen overflow-hidden">
 	<DotGrid testHour={testHour ?? undefined} />
 	<div class="relative z-10 flex flex-col justify-center px-6 pt-24 pb-16 max-w-6xl mx-auto min-h-screen">
-		<div class="grid lg:grid-cols-[1fr_auto] gap-12 xl:gap-20 items-center">
+		<div class="grid lg:grid-cols-[auto_1fr] gap-12 xl:gap-20 items-center">
+			<!-- Portrait -->
+			<div class="hidden lg:block self-center">
+				<div class="relative inline-block">
+					<div
+						class="absolute inset-0"
+						style="background-color: var(--c-accent); transform: translate(6px, 6px);"
+					></div>
+					<div class="portrait-frame w-56 xl:w-64">
+						<div class="portrait-duo">
+							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" />
+						</div>
+						<div class="portrait-grain" style:opacity={grainOpacity}></div>
+						<div class="portrait-lines"></div>
+					</div>
+				</div>
+			</div>
+
 			<!-- Text content -->
 			<div>
 				<p class="text-sm font-semibold uppercase tracking-widest mb-6" style="color: var(--c-muted);">
@@ -338,23 +389,6 @@
 					>
 						Get in touch
 					</button>
-				</div>
-			</div>
-
-			<!-- Portrait -->
-			<div class="hidden lg:block self-center">
-				<div class="relative inline-block">
-					<div
-						class="absolute inset-0"
-						style="background-color: var(--c-accent); transform: translate(6px, 6px);"
-					></div>
-					<div class="portrait-frame w-56 xl:w-64">
-						<div class="portrait-duo">
-							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" />
-						</div>
-						<div class="portrait-grain" style:opacity={grainOpacity}></div>
-						<div class="portrait-lines"></div>
-					</div>
 				</div>
 			</div>
 		</div>

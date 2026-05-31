@@ -4,7 +4,12 @@
 		testHour?: number;
 	}
 
-	interface Burst { x: number; y: number; radius: number; maxRadius: number; }
+	interface Burst {
+		x: number;
+		y: number;
+		radius: number;
+		maxRadius: number;
+	}
 
 	let { animate = true, testHour }: Props = $props();
 
@@ -44,17 +49,17 @@
 		}
 
 		const TIME_ANCHORS: ColorAnchor[] = [
-			{ hour: 0,  rgb: [79, 70, 229]  }, // Indigo   #4f46e5
-			{ hour: 5,  rgb: [249, 115, 22] }, // Coral    #f97316
-			{ hour: 7,  rgb: [234, 179, 8]  }, // Yellow   #eab308
+			{ hour: 0, rgb: [79, 70, 229] }, // Indigo   #4f46e5
+			{ hour: 5, rgb: [249, 115, 22] }, // Coral    #f97316
+			{ hour: 7, rgb: [234, 179, 8] }, // Yellow   #eab308
 			{ hour: 11, rgb: [56, 189, 248] }, // Sky blue #38bdf8
 			{ hour: 16, rgb: [245, 158, 11] }, // Amber    #f59e0b
 			{ hour: 19, rgb: [168, 85, 247] }, // Rose-pur #a855f7
-			{ hour: 24, rgb: [79, 70, 229]  }, // Indigo   #4f46e5 (wrap)
+			{ hour: 24, rgb: [79, 70, 229] } // Indigo   #4f46e5 (wrap)
 		];
 
 		function getTimeColor(): [number, number, number] {
-			const fractionalHour = testHour ?? (new Date().getHours() + new Date().getMinutes() / 60);
+			const fractionalHour = testHour ?? new Date().getHours() + new Date().getMinutes() / 60;
 
 			// Find the two surrounding anchors
 			let fromAnchor = TIME_ANCHORS[0];
@@ -74,7 +79,7 @@
 			return [
 				Math.round(fromAnchor.rgb[0] + t * (toAnchor.rgb[0] - fromAnchor.rgb[0])),
 				Math.round(fromAnchor.rgb[1] + t * (toAnchor.rgb[1] - fromAnchor.rgb[1])),
-				Math.round(fromAnchor.rgb[2] + t * (toAnchor.rgb[2] - fromAnchor.rgb[2])),
+				Math.round(fromAnchor.rgb[2] + t * (toAnchor.rgb[2] - fromAnchor.rgb[2]))
 			];
 		}
 
@@ -106,7 +111,13 @@
 				return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
 			}
 			const clean = color.replace(/^#/, '');
-			const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+			const full =
+				clean.length === 3
+					? clean
+							.split('')
+							.map((c) => c + c)
+							.join('')
+					: clean;
 			const n = parseInt(full, 16);
 			if (isNaN(n)) return [10, 10, 10];
 			return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
@@ -146,7 +157,8 @@
 						// Burst ripples from clicks
 						for (const burst of bursts) {
 							const bd = Math.sqrt((x - burst.x) ** 2 + (y - burst.y) ** 2);
-							interactiveOpacity += BURST_AMPLITUDE * gaussian(Math.abs(bd - burst.radius), BURST_SIGMA);
+							interactiveOpacity +=
+								BURST_AMPLITUDE * gaussian(Math.abs(bd - burst.radius), BURST_SIGMA);
 						}
 
 						// Proximity glow under mouse
@@ -258,6 +270,6 @@
 <canvas
 	bind:this={canvas}
 	aria-hidden="true"
-	class="absolute inset-0 h-full w-full pointer-events-none"
+	class="pointer-events-none absolute inset-0 h-full w-full"
 	style="z-index: 0;"
 ></canvas>

@@ -130,49 +130,69 @@ body {
 
 /* ── Dark mode toggle ─────────────────────────────────────── */
 .dm-toggle {
-	display: flex;
 	border: 2px solid var(--c-ink);
 	box-shadow: 2px 2px 0 var(--c-shadow);
-	overflow: hidden;
 	cursor: pointer;
+	padding: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: transparent;
+	color: var(--c-ink);
 	transition:
 		border-color 0.25s ease,
-		box-shadow 0.25s ease;
+		box-shadow 0.15s ease,
+		transform 0.15s ease,
+		color 0.25s ease;
 }
 
-.dm-toggle span {
-	padding: 6px 10px;
-	font-size: 0.7rem;
-	font-weight: 700;
-	letter-spacing: 0.05em;
+.dm-toggle:hover {
+	box-shadow: 4px 4px 0 var(--c-shadow);
+	transform: translate(-1px, -1px);
+}
+
+.dm-toggle:active {
+	box-shadow: 1px 1px 0 var(--c-shadow);
+	transform: translate(1px, 1px);
+}
+
+.theme-icon {
+	position: relative;
+	width: 18px;
+	height: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.icon-sun,
+.icon-moon {
+	position: absolute;
 	transition:
-		background-color 0.2s ease,
-		color 0.2s ease;
-	user-select: none;
+		transform 0.35s ease,
+		opacity 0.25s ease;
 }
 
-.dm-toggle span + span {
-	border-left: 2px solid var(--c-ink);
-	transition:
-		border-color 0.25s ease,
-		background-color 0.2s ease,
-		color 0.2s ease;
+/* Light mode: sun visible */
+.icon-sun {
+	opacity: 1;
+	transform: rotate(0deg) scale(1);
+}
+.icon-moon {
+	opacity: 0;
+	transform: rotate(90deg) scale(0.4);
 }
 
-.dm-active {
-	background-color: var(--c-accent);
-	color: #0a0a0a !important;
+/* Dark mode: moon visible */
+.is-dark .icon-sun,
+html.dark .dm-toggle .icon-sun {
+	opacity: 0;
+	transform: rotate(-90deg) scale(0.4);
 }
-
-/* Pre-hydration toggle fix: html.dark is set by the inline script before first paint,
-   so these rules make the correct button appear active before Svelte JS runs. */
-html.dark .dm-toggle span:first-child {
-	background-color: transparent !important;
-	color: var(--c-muted) !important;
-}
-html.dark .dm-toggle span:last-child {
-	background-color: var(--c-accent) !important;
-	color: #0a0a0a !important;
+.is-dark .icon-moon,
+html.dark .dm-toggle .icon-moon {
+	opacity: 1;
+	transform: rotate(0deg) scale(1);
 }
 
 /* ── Contact section (inverts in dark mode) ───────────────── */
