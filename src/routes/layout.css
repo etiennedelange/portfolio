@@ -278,9 +278,9 @@ html.dark .dm-toggle .icon-moon {
 /* ── Scroll progress bar ──────────────────────────────────── */
 .scroll-progress {
 	position: absolute;
-	bottom: -2px;
+	top: 0;
 	left: 0;
-	height: 2px;
+	height: 3px;
 	background-color: var(--c-accent);
 	transition: width 0.1s linear, background-color 0.6s ease;
 	pointer-events: none;

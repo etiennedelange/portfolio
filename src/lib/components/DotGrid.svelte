@@ -49,13 +49,13 @@
 		}
 
 		const TIME_ANCHORS: ColorAnchor[] = [
-			{ hour: 0, rgb: [79, 70, 229] }, // Indigo   #4f46e5
-			{ hour: 5, rgb: [249, 115, 22] }, // Coral    #f97316
-			{ hour: 7, rgb: [234, 179, 8] }, // Yellow   #eab308
+			{ hour: 0,  rgb: [74, 222, 128] }, // Green    #4ade80
+			{ hour: 5,  rgb: [249, 115, 22] }, // Coral    #f97316
+			{ hour: 7,  rgb: [234, 179, 8]  }, // Yellow   #eab308
 			{ hour: 11, rgb: [56, 189, 248] }, // Sky blue #38bdf8
 			{ hour: 16, rgb: [245, 158, 11] }, // Amber    #f59e0b
-			{ hour: 19, rgb: [168, 85, 247] }, // Rose-pur #a855f7
-			{ hour: 24, rgb: [79, 70, 229] } // Indigo   #4f46e5 (wrap)
+			{ hour: 19, rgb: [34, 197, 94]  }, // Green    #22c55e
+			{ hour: 24, rgb: [74, 222, 128] }, // Green    #4ade80 (wrap)
 		];
 
 		function getTimeColor(): [number, number, number] {
