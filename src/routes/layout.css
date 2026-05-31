@@ -258,3 +258,117 @@ html.dark .dm-toggle .icon-moon {
 	box-shadow: 1px 1px 0 var(--c-contact-cta-border);
 	transform: translate(1px, 1px);
 }
+
+/* ── Stamp animation (skill tags) ─────────────────────────── */
+@keyframes stamp-pop {
+	0%   { transform: scale(1);    box-shadow: 2px 2px 0 var(--c-shadow); }
+	35%  { transform: scale(1.18); box-shadow: 6px 6px 0 var(--c-shadow); }
+	65%  { transform: scale(0.95); box-shadow: 1px 1px 0 var(--c-shadow); }
+	100% { transform: scale(1);    box-shadow: 2px 2px 0 var(--c-shadow); }
+}
+
+.is-stamped {
+	animation: stamp-pop 0.35s ease forwards;
+}
+
+.neo-tag {
+	cursor: pointer;
+}
+
+/* ── Scroll progress bar ──────────────────────────────────── */
+.scroll-progress {
+	position: absolute;
+	bottom: -2px;
+	left: 0;
+	height: 2px;
+	background-color: var(--c-accent);
+	transition: width 0.1s linear, background-color 0.6s ease;
+	pointer-events: none;
+}
+
+/* ── Portrait interaction modes ───────────────────────────── */
+.portrait-frame {
+	cursor: pointer;
+}
+
+.portrait-mode-contrast .portrait-img {
+	filter: grayscale(1) contrast(2.2) brightness(0.9);
+}
+.portrait-mode-contrast .portrait-grain {
+	opacity: 0 !important;
+}
+
+.portrait-mode-glitch .portrait-img {
+	filter: grayscale(0.3) contrast(1.6) hue-rotate(15deg) brightness(1.1);
+	animation: glitch-shift 0.18s steps(1) infinite;
+}
+.portrait-mode-glitch .portrait-grain {
+	opacity: 0.35 !important;
+	animation-duration: 0.08s !important;
+}
+
+@keyframes glitch-shift {
+	0%   { transform: translate(0,    0);   }
+	20%  { transform: translate(-3px, 1px); }
+	40%  { transform: translate(2px, -2px); }
+	60%  { transform: translate(-1px, 3px); }
+	80%  { transform: translate(3px, -1px); }
+	100% { transform: translate(0,    0);   }
+}
+
+.portrait-mode-scanlines .portrait-img {
+	filter: grayscale(1) contrast(1.1) brightness(0.95);
+	mix-blend-mode: normal;
+}
+.portrait-mode-scanlines .portrait-grain {
+	opacity: 0 !important;
+}
+.portrait-mode-scanlines .portrait-lines {
+	background: repeating-linear-gradient(
+		0deg,
+		transparent,
+		transparent 1px,
+		rgba(0, 0, 0, 0.25) 1px,
+		rgba(0, 0, 0, 0.25) 2px
+	);
+}
+
+/* ── Footer secret ────────────────────────────────────────── */
+.footer-secret {
+	text-align: center;
+	font-size: 0.75rem;
+	font-style: italic;
+	padding: 0.75rem 1rem 1.5rem;
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity 0.8s ease;
+	color: var(--c-muted);
+}
+
+.footer-secret.is-visible {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+/* ── Logo easter egg tooltip ──────────────────────────────── */
+.logo-wrap {
+	position: relative;
+	display: inline-block;
+}
+
+.logo-tooltip {
+	position: absolute;
+	top: calc(100% + 8px);
+	left: 0;
+	white-space: nowrap;
+	font-size: 0.7rem;
+	font-weight: 600;
+	padding: 4px 10px;
+	background-color: var(--c-bg);
+	border: 2px solid var(--c-ink);
+	box-shadow: 3px 3px 0 var(--c-shadow);
+	color: var(--c-ink);
+	z-index: 100;
+	pointer-events: none;
+	transition: border-color 0.25s ease, background-color 0.25s ease;
+}
