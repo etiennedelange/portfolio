@@ -805,6 +805,10 @@
 	</div>
 </footer>
 
+<p class="footer-secret" class:is-visible={footerSecretVisible}>
+	You made it. Most people don't scroll this far.
+</p>
+
 <style>
 	/* ── Portrait retro effects ─────────────────────────────── */
 	.portrait-frame {
