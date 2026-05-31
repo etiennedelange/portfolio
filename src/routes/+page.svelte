@@ -15,13 +15,24 @@
 
 	const experiences = [
 		{
+			company: 'Powerfleet',
+			role: 'Software Engineer',
+			period: '2023 – Present',
+			tech: ['GitHub Copilot', 'AI Agents', 'Claude Code', 'Agentic Engineering', 'GitHub', 'TypeScript'],
+			highlights: [
+				'Adopted GitHub Copilot CLI and AI-assisted tooling to accelerate development workflows.',
+				'Built and iterated on custom agents and skills within agentic engineering frameworks.',
+				'Deepened expertise in the agentic engineering approach — designing systems where AI agents handle discrete tasks end-to-end.'
+			]
+		},
+		{
 			company: 'MRI Software',
 			role: 'Software Engineer III',
-			period: 'May 2022 – Present',
+			period: 'May 2022 – 2023',
 			tech: ['Azure', '.NET', 'C#', 'ASP.NET MVC', 'Umbraco', 'GitHub', 'Azure DevOps', 'SQL'],
 			highlights: [
-				'Develop new features and fix bugs across a cloud-based real estate software platform.',
-				'Conduct code reviews via GitHub pull requests to maintain quality standards.',
+				'Developed new features and fixed bugs across a cloud-based real estate software platform.',
+				'Conducted code reviews via GitHub pull requests to maintain quality standards.',
 				'Sprint planning and tracking with JIRA in an agile team.'
 			]
 		},
@@ -86,6 +97,10 @@
 		{
 			label: 'Mobile & Desktop',
 			skills: ['iOS', 'Android', 'Xamarin', 'WPF', 'WinForms', 'Java']
+		},
+		{
+			label: 'AI & Agentic',
+			skills: ['GitHub Copilot', 'Claude Code', 'AI Agents', 'Agentic Engineering', 'Prompt Engineering']
 		},
 		{
 			label: 'Tools & Process',
@@ -275,8 +290,8 @@
 		</h1>
 
 		<p class="text-lg md:text-xl max-w-xl leading-relaxed mt-8 mb-10" style="color: var(--c-muted);">
-			14+ years crafting robust software — from conveyancing systems and property apps
-			to microservices on Azure. I take pride in every line of code.
+			15+ years crafting robust software — from conveyancing systems and property apps
+			to microservices on Azure and agentic AI engineering. I take pride in every line of code.
 		</p>
 
 		<div class="flex flex-wrap gap-4">
@@ -300,8 +315,8 @@
 	<!-- Stats row -->
 	<div class="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6">
 		{#each [
-			{ value: '14+', label: 'Years experience' },
-			{ value: '5', label: 'Companies' },
+			{ value: '15+', label: 'Years experience' },
+			{ value: '6', label: 'Companies' },
 			{ value: '2', label: 'Certifications' },
 			{ value: 'Cum Laude', label: 'Graduate' }
 		] as stat (stat.label)}
@@ -333,8 +348,13 @@
 				</p>
 				<p>
 					At LexisNexis I was the sole architect of an internal admin platform, setting up full CI/CD
-					pipelines in Azure DevOps from scratch. At MRI Software I've deepened my Azure expertise,
+					pipelines in Azure DevOps from scratch. At MRI Software I deepened my Azure expertise,
 					developing microservices that power real estate management at scale.
+				</p>
+				<p>
+					Now at Powerfleet, I'm embracing the agentic engineering era — building and working with
+					AI agents, leveraging GitHub Copilot CLI, and adopting the next generation of AI-assisted
+					developer workflows.
 				</p>
 				<p>
 					Agile methodologies, code reviews, and mentoring junior developers have been constants
