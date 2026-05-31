@@ -288,13 +288,19 @@
 	style:border-bottom={scrolled ? '2px solid var(--c-ink)' : 'none'}
 >
 	<nav class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-		<a
-			href="/"
-			class="text-lg font-bold tracking-tight hover:opacity-70 transition-opacity"
-			style="color: var(--c-ink);"
-		>
-			Etienne<span style="color: var(--c-accent);" class="ml-1">.</span>
-		</a>
+		<div class="logo-wrap">
+			<a
+				href="/"
+				onclick={handleLogoClick}
+				class="text-lg font-bold tracking-tight hover:opacity-70 transition-opacity"
+				style="color: var(--c-ink);"
+			>
+				Etienne<span style="color: var(--c-accent);" class="ml-1">.</span>
+			</a>
+			{#if logoMessage}
+				<div class="logo-tooltip">{logoMessage}</div>
+			{/if}
+		</div>
 
 		<!-- Desktop nav -->
 		<ul class="hidden md:flex items-center gap-8">
