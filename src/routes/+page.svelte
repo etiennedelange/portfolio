@@ -439,7 +439,17 @@
 						class="absolute inset-0"
 						style="background-color: var(--c-accent); transform: translate(6px, 6px);"
 					></div>
-					<div class="portrait-frame w-56 xl:w-64">
+					<div
+						class="portrait-frame w-56 xl:w-64"
+						class:portrait-mode-contrast={portraitMode === 1}
+						class:portrait-mode-glitch={portraitMode === 2}
+						class:portrait-mode-scanlines={portraitMode === 3}
+						onclick={cyclePortrait}
+						role="button"
+						tabindex="0"
+						aria-label="Cycle portrait filter"
+						onkeydown={(e) => e.key === 'Enter' && cyclePortrait()}
+					>
 						<div class="portrait-duo" class:transitions-on={portraitReady}>
 							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
 						</div>
@@ -523,7 +533,17 @@
 						class="absolute inset-0"
 						style="background-color: var(--c-accent); transform: translate(5px, 5px);"
 					></div>
-					<div class="portrait-frame w-40">
+					<div
+						class="portrait-frame w-40"
+						class:portrait-mode-contrast={portraitMode === 1}
+						class:portrait-mode-glitch={portraitMode === 2}
+						class:portrait-mode-scanlines={portraitMode === 3}
+						onclick={cyclePortrait}
+						role="button"
+						tabindex="0"
+						aria-label="Cycle portrait filter"
+						onkeydown={(e) => e.key === 'Enter' && cyclePortrait()}
+					>
 						<div class="portrait-duo" class:transitions-on={portraitReady}>
 							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
 						</div>
