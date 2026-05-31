@@ -624,7 +624,7 @@
 					</h3>
 					<div class="flex flex-wrap gap-2">
 						{#each group.skills as skill (skill)}
-							<span class="neo-tag">{skill}</span>
+							<span class="neo-tag" use:stamp onclick={() => handleSkillStamp(skill)}>{skill}</span>
 						{/each}
 					</div>
 				</div>
