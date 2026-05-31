@@ -6,6 +6,7 @@
 	import { gameState } from '$lib/gameState';
 	import { countUp } from '$lib/actions/countUp';
 	import { stamp } from '$lib/actions/stamp';
+	import Terminal from '$lib/components/Terminal.svelte';
 
 	let menuOpen = $state(false);
 	let scrolled = $state(false);
@@ -759,6 +760,7 @@
 
 </main>
 
+<Terminal bind:open={terminalOpen} />
 <svelte:window onkeydown={handleKeydown} />
 
 <!-- TIME-OF-DAY DEV SLIDER -->
