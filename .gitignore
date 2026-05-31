@@ -84,3 +84,5 @@ storybook-static
 *.jpg
 *.jpeg
 !static/**
+
+.claude/worktrees/

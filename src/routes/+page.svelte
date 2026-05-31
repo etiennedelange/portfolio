@@ -9,6 +9,7 @@
 	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
 	let testHour = $state<number | null>(null);
 	let sliderVisible = $state(false);
+	let grainOpacity = $state(0.35);
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.altKey && e.key === 't') sliderVisible = !sliderVisible;
@@ -299,47 +300,67 @@
 <section id="hero" class="relative min-h-screen overflow-hidden">
 	<DotGrid testHour={testHour ?? undefined} />
 	<div class="relative z-10 flex flex-col justify-center px-6 pt-24 pb-16 max-w-6xl mx-auto min-h-screen">
-		<div class="max-w-3xl">
-			<p class="text-sm font-semibold uppercase tracking-widest mb-6" style="color: var(--c-muted);">
-				Software Engineer · Port Elizabeth, South Africa
-			</p>
+		<div class="grid lg:grid-cols-[1fr_auto] gap-12 xl:gap-20 items-center">
+			<!-- Text content -->
+			<div>
+				<p class="text-sm font-semibold uppercase tracking-widest mb-6" style="color: var(--c-muted);">
+					Software Engineer · Port Elizabeth, South Africa
+				</p>
 
-			<h1 class="text-6xl sm:text-7xl md:text-8xl font-bold leading-none tracking-tight mb-6">
-				Etienne<br />
-				<span class="relative inline-block">
-					de Lange
-					<span
-						class="absolute -bottom-2 left-0 right-0 h-4 -z-10"
-						style="background-color: var(--c-accent);"
-					></span>
-				</span>
-			</h1>
+				<h1 class="text-6xl sm:text-7xl font-bold leading-none tracking-tight mb-6">
+					Etienne<br />
+					<span class="relative inline-block">
+						de Lange
+						<span
+							class="absolute -bottom-2 left-0 right-0 h-4 -z-10"
+							style="background-color: var(--c-accent);"
+						></span>
+					</span>
+				</h1>
 
-			<p class="text-lg md:text-xl max-w-xl leading-relaxed mt-8 mb-10" style="color: var(--c-muted);">
-				15+ years crafting robust software — from conveyancing systems and property apps
-				to microservices on Azure and agentic AI engineering. I take pride in every line of code.
-			</p>
+				<p class="text-lg md:text-xl max-w-xl leading-relaxed mt-8 mb-10" style="color: var(--c-muted);">
+					15+ years crafting robust software — from conveyancing systems and property apps
+					to microservices on Azure and agentic AI engineering. I take pride in every line of code.
+				</p>
 
-			<div class="flex flex-wrap gap-4">
-				<button
-					onclick={() => scrollTo('experience')}
-					class="neo-btn px-6 py-3 font-semibold"
-					style="background-color: var(--c-accent); color: #0a0a0a;"
-				>
-					View Experience
-				</button>
-				<button
-					onclick={() => scrollTo('contact')}
-					class="neo-btn px-6 py-3 font-semibold"
-					style="background-color: var(--c-bg);"
-				>
-					Get in touch
-				</button>
+				<div class="flex flex-wrap gap-4">
+					<button
+						onclick={() => scrollTo('experience')}
+						class="neo-btn px-6 py-3 font-semibold"
+						style="background-color: var(--c-accent); color: #0a0a0a;"
+					>
+						View Experience
+					</button>
+					<button
+						onclick={() => scrollTo('contact')}
+						class="neo-btn px-6 py-3 font-semibold"
+						style="background-color: var(--c-bg);"
+					>
+						Get in touch
+					</button>
+				</div>
+			</div>
+
+			<!-- Portrait -->
+			<div class="hidden lg:block self-center">
+				<div class="relative inline-block">
+					<div
+						class="absolute inset-0"
+						style="background-color: var(--c-accent); transform: translate(6px, 6px);"
+					></div>
+					<div class="portrait-frame w-56 xl:w-64">
+						<div class="portrait-duo">
+							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" />
+						</div>
+						<div class="portrait-grain" style:opacity={grainOpacity}></div>
+						<div class="portrait-lines"></div>
+					</div>
+				</div>
 			</div>
 		</div>
 
 		<!-- Stats row -->
-		<div class="mt-20 grid grid-cols-2 sm:grid-cols-4 gap-6">
+		<div class="mt-16 grid grid-cols-2 sm:grid-cols-4 gap-6">
 			{#each [
 				{ value: '15+', label: 'Years experience' },
 				{ value: '6', label: 'Companies' },
@@ -363,9 +384,22 @@
 				<p class="text-xs font-bold uppercase tracking-widest mb-3" style="color: var(--c-muted);">
 					01 / About
 				</p>
-				<h2 class="text-4xl md:text-5xl font-bold leading-tight">
+				<h2 class="text-4xl md:text-5xl font-bold leading-tight mb-8">
 					Passionate about<br />great software.
 				</h2>
+				<div class="relative inline-block lg:hidden">
+					<div
+						class="absolute inset-0"
+						style="background-color: var(--c-accent); transform: translate(5px, 5px);"
+					></div>
+					<div class="portrait-frame w-40">
+						<div class="portrait-duo">
+							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" />
+						</div>
+						<div class="portrait-grain" style:opacity={grainOpacity}></div>
+						<div class="portrait-lines"></div>
+					</div>
+				</div>
 			</div>
 			<div class="space-y-5 leading-relaxed" style="color: var(--c-muted);">
 				<p>
@@ -595,6 +629,17 @@
 	>
 		{testHour !== null ? '↩ Reset to real time' : '← drag to override'}
 	</button>
+	<div style="height:1px;background:var(--c-border-soft);margin:0.25rem 0;"></div>
+	<div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;">
+		<span style="font-size:0.65rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--c-muted);">Grain intensity</span>
+		<span style="font-size:0.75rem;font-weight:700;font-family:monospace;color:var(--c-ink);">{grainOpacity.toFixed(2)}</span>
+	</div>
+	<input
+		type="range" min="0" max="1" step="0.01"
+		value={grainOpacity}
+		oninput={(e) => { grainOpacity = parseFloat((e.target as HTMLInputElement).value); }}
+		style="width:100%;accent-color:var(--c-accent);"
+	/>
 </div>
 
 {/if}
@@ -608,3 +653,76 @@
 		<p class="text-xs" style="color: var(--c-muted);">Built with SvelteKit · Tailwind CSS</p>
 	</div>
 </footer>
+
+<style>
+	/* ── Portrait retro effects ─────────────────────────────── */
+	.portrait-frame {
+		position: relative;
+		display: block;
+		border: 2px solid var(--c-ink);
+		overflow: hidden;
+		isolation: isolate;
+		transition: border-color 0.25s ease;
+	}
+
+	/* Yellow background behind the image — creates the duotone when
+	   the image is set to mix-blend-mode: multiply + grayscale */
+	.portrait-duo {
+		display: block;
+		line-height: 0;
+		background-color: var(--c-accent);
+		transition: background-color 0.6s ease;
+	}
+
+	.portrait-img {
+		display: block;
+		width: 100%;
+		filter: grayscale(1) contrast(1.3) brightness(1.05);
+		mix-blend-mode: multiply;
+	}
+
+	/* Animated film grain — oversized so translation never shows edges */
+	.portrait-grain {
+		position: absolute;
+		inset: 0;
+		width: 300%;
+		height: 300%;
+		top: -100%;
+		left: -100%;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+		background-size: 200px 200px;
+		opacity: 0.09;
+		animation: portrait-grain-move 0.14s steps(1) infinite;
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	/* Horizontal scanlines */
+	.portrait-lines {
+		position: absolute;
+		inset: 0;
+		background: repeating-linear-gradient(
+			0deg,
+			transparent,
+			transparent 2px,
+			rgba(0, 0, 0, 0.055) 2px,
+			rgba(0, 0, 0, 0.055) 3px
+		);
+		pointer-events: none;
+		z-index: 2;
+	}
+
+	@keyframes portrait-grain-move {
+		0%   { transform: translate(0%,    0%);   }
+		10%  { transform: translate(-4%,  -3%);   }
+		20%  { transform: translate(-9%,   5%);   }
+		30%  { transform: translate( 6%,  -8%);   }
+		40%  { transform: translate(-3%,  11%);   }
+		50%  { transform: translate(-7%,   2%);   }
+		60%  { transform: translate( 13%, -1%);   }
+		70%  { transform: translate( 2%,   9%);   }
+		80%  { transform: translate(-11%,  0%);   }
+		90%  { transform: translate( 7%,   4%);   }
+		100% { transform: translate( 3%,  -2%);   }
+	}
+</style>
