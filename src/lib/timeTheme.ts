@@ -50,4 +50,15 @@ export function applyTimePalette(fractionalHour: number, isDark: boolean): void 
 	for (const [key, value] of Object.entries(palette)) {
 		root.style.setProperty(key, value);
 	}
+
+	// The portrait duotone multiplies a grayscale photo over this tint, which
+	// only ever darkens the result — it needs the vivid (dark-mode) accent
+	// variant even in light mode, since the light-mode accent is tuned dark
+	// at night for button/tag contrast instead of brightness.
+	const portraitTint = lerpHex(
+		rowToPalette(from[2])['--c-accent'],
+		rowToPalette(to[2])['--c-accent'],
+		t
+	);
+	root.style.setProperty('--c-portrait-tint', portraitTint);
 }

@@ -438,34 +438,7 @@
 <section id="hero" class="relative min-h-screen overflow-hidden">
 	<DotGrid testHour={testHour ?? undefined} />
 	<div class="relative z-10 flex flex-col justify-center px-6 pt-24 pb-16 max-w-6xl mx-auto min-h-screen">
-		<div class="grid lg:grid-cols-[auto_1fr] gap-12 xl:gap-20 items-center">
-			<!-- Portrait -->
-			<div class="hidden lg:block self-center">
-				<div class="relative inline-block">
-					<div
-						class="absolute inset-0"
-						style="background-color: var(--c-accent); transform: translate(6px, 6px);"
-					></div>
-					<div
-						class="portrait-frame w-56 xl:w-64"
-						class:portrait-mode-contrast={portraitMode === 1}
-						class:portrait-mode-glitch={portraitMode === 2}
-						class:portrait-mode-scanlines={portraitMode === 3}
-						onclick={cyclePortrait}
-						role="button"
-						tabindex="0"
-						aria-label="Cycle portrait filter"
-						onkeydown={(e) => e.key === 'Enter' && cyclePortrait()}
-					>
-						<div class="portrait-duo" class:transitions-on={portraitReady}>
-							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
-						</div>
-						<div class="portrait-grain" style:opacity={grainOpacity}></div>
-						<div class="portrait-lines"></div>
-					</div>
-				</div>
-			</div>
-
+		<div class="grid lg:grid-cols-[1fr_auto] gap-12 xl:gap-20 items-center">
 			<!-- Text content -->
 			<div>
 				<p class="text-sm font-semibold uppercase tracking-widest mb-6" style="color: var(--c-muted);">
@@ -503,6 +476,33 @@
 					>
 						Get in touch
 					</button>
+				</div>
+			</div>
+
+			<!-- Portrait -->
+			<div class="hidden lg:block self-center">
+				<div class="relative inline-block">
+					<div
+						class="absolute inset-0"
+						style="background-color: var(--c-accent); transform: translate(6px, 6px);"
+					></div>
+					<div
+						class="portrait-frame w-56 xl:w-64"
+						class:portrait-mode-contrast={portraitMode === 1}
+						class:portrait-mode-glitch={portraitMode === 2}
+						class:portrait-mode-scanlines={portraitMode === 3}
+						onclick={cyclePortrait}
+						role="button"
+						tabindex="0"
+						aria-label="Cycle portrait filter"
+						onkeydown={(e) => e.key === 'Enter' && cyclePortrait()}
+					>
+						<div class="portrait-duo" class:transitions-on={portraitReady}>
+							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
+						</div>
+						<div class="portrait-grain" style:opacity={grainOpacity}></div>
+						<div class="portrait-lines"></div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -833,7 +833,7 @@
 	.portrait-duo {
 		display: block;
 		line-height: 0;
-		background-color: var(--c-accent);
+		background-color: var(--c-portrait-tint, var(--c-accent));
 	}
 
 	.portrait-duo.transitions-on {
