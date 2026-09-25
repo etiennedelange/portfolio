@@ -39,4 +39,34 @@ npm run build
 
 You can preview the production build with `npm run preview`.
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+## Deploying
+
+The site is deployed on Vercel using [`@sveltejs/adapter-vercel`](https://svelte.dev/docs/kit/adapter-vercel).
+
+## Projects from GitHub
+
+The Projects section is populated from GitHub automatically, so the site never needs editing to add or remove a project. It is managed entirely from GitHub:
+
+- **Featured projects** are the repos pinned on the GitHub profile (GitHub allows at most 6).
+- **More projects** are all public, non-fork, non-archived repos owned by the account that carry the `portfolio` topic, most recently pushed first. Pinned repos are not repeated here.
+
+To add a repo, tag it (repo page → About ⚙️ → Topics → `portfolio`) or run:
+
+```sh
+gh repo edit <owner>/<repo> --add-topic portfolio
+```
+
+The card text comes from the repo's About box: description, website (shown as a "Live →" link on featured cards), topics, primary language and stars. Private repos are never shown.
+
+### How it works
+
+- `src/lib/server/github.ts` makes a single GraphQL request to the GitHub API for the token owner's pinned repos and public repos, then filters the latter by topic. The topic name is the `PORTFOLIO_TOPIC` constant.
+- `src/routes/+page.server.ts` loads this on the server and enables Vercel [ISR](https://vercel.com/docs/incremental-static-regeneration) with a one-hour expiration: visitors get a cached page, and it is regenerated in the background at most once an hour. Changes on GitHub therefore take up to an hour to appear (redeploy to force it).
+- If the token is missing or the request fails, the error is logged and the Projects section (and its nav link) is hidden; the rest of the page renders normally.
+
+### Setup
+
+Create a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) with the default "Public repositories (read-only)" access and no extra permissions. The token's owner is whose repos are shown, so no username is configured anywhere.
+
+- **Locally:** copy `.env.example` to `.env` and set `GITHUB_TOKEN`. `pnpm dev` fetches fresh on every load (ISR only applies on Vercel).
+- **Vercel:** add `GITHUB_TOKEN` under Project → Settings → Environment Variables, then redeploy.

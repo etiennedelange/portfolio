@@ -9,6 +9,12 @@
 	import Terminal from '$lib/components/Terminal.svelte';
 	import DitheredObject from '$lib/components/DitheredObject.svelte';
 
+	let { data } = $props();
+
+	// Projects slots in as 03 only when GitHub returned something.
+	const hasProjects = $derived(data.projects.pinned.length + data.projects.tagged.length > 0);
+	const sectionNo = (n: number) => String(hasProjects ? n + 1 : n).padStart(2, '0');
+
 	let menuOpen = $state(false);
 	let scrolled = $state(false);
 	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
@@ -65,13 +71,14 @@
 		document.body.style.overflow = terminalOpen ? 'hidden' : '';
 	});
 
-	const navItems = [
+	const navItems = $derived([
 		{ id: 'about', label: 'About' },
 		{ id: 'experience', label: 'Experience' },
+		...(hasProjects ? [{ id: 'projects', label: 'Projects' }] : []),
 		{ id: 'skills', label: 'Skills' },
 		{ id: 'education', label: 'Education' },
 		{ id: 'contact', label: 'Contact' }
-	];
+	]);
 
 	const experiences = [
 		{
@@ -633,11 +640,113 @@
 	</div>
 </section>
 
+<!-- PROJECTS -->
+{#if hasProjects}
+	<section id="projects" class="py-24 px-6" style="background-color: var(--c-bg-alt);">
+		<div class="max-w-6xl mx-auto">
+			<p class="text-xs font-bold uppercase tracking-widest mb-3" style="color: var(--c-muted);">
+				03 / Projects
+			</p>
+			<h2 class="text-4xl md:text-5xl font-bold mb-16">Things I've built.</h2>
+
+			{#if data.projects.pinned.length}
+				<div class="grid md:grid-cols-2 gap-8 mb-16">
+					{#each data.projects.pinned as repo (repo.url)}
+						<div class="neo-card p-8 flex flex-col">
+							<div class="flex items-start justify-between gap-4 mb-3">
+								<h3 class="text-xl font-bold break-all">
+									<a href={repo.url} target="_blank" rel="noopener noreferrer" class="hover:underline">
+										{repo.name}
+									</a>
+								</h3>
+								{#if repo.stars > 0}
+									<span class="neo-tag shrink-0">★ {repo.stars}</span>
+								{/if}
+							</div>
+
+							{#if repo.description}
+								<p class="text-sm leading-relaxed mb-6" style="color: var(--c-muted);">{repo.description}</p>
+							{/if}
+
+							<div class="mt-auto flex flex-wrap items-center gap-2">
+								{#if repo.language}
+									<span
+										class="text-xs px-2 py-0.5 font-medium inline-flex items-center gap-1.5"
+										style="border: 1px solid var(--c-border-soft); color: var(--c-muted);"
+									>
+										<span
+											class="w-2 h-2 inline-block"
+											style="background-color: {repo.language.color ?? 'var(--c-muted)'}; border: 1px solid var(--c-ink);"
+										></span>
+										{repo.language.name}
+									</span>
+								{/if}
+								{#each repo.topics as topic (topic)}
+									<span
+										class="text-xs px-2 py-0.5 font-medium"
+										style="border: 1px solid var(--c-border-soft); color: var(--c-muted);"
+									>{topic}</span>
+								{/each}
+								{#if repo.homepageUrl}
+									<a
+										href={repo.homepageUrl}
+										target="_blank"
+										rel="noopener noreferrer"
+										class="ml-auto text-sm font-bold"
+										style="color: var(--c-accent);"
+									>Live →</a>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+
+			{#if data.projects.tagged.length}
+				<p class="text-xs font-bold uppercase tracking-widest mb-6" style="color: var(--c-muted);">
+					More projects
+				</p>
+				<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+					{#each data.projects.tagged as repo (repo.url)}
+						<a
+							href={repo.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							class="neo-card p-5 flex flex-col"
+						>
+							<div class="flex items-start justify-between gap-3 mb-2">
+								<h3 class="font-bold break-all">{repo.name}</h3>
+								{#if repo.stars > 0}
+									<span class="text-xs shrink-0" style="color: var(--c-muted);">★ {repo.stars}</span>
+								{/if}
+							</div>
+							{#if repo.description}
+								<p class="text-sm leading-relaxed mb-4 line-clamp-2" style="color: var(--c-muted);">
+									{repo.description}
+								</p>
+							{/if}
+							{#if repo.language}
+								<span class="mt-auto text-xs font-medium inline-flex items-center gap-1.5" style="color: var(--c-muted);">
+									<span
+										class="w-2 h-2 inline-block"
+										style="background-color: {repo.language.color ?? 'var(--c-muted)'}; border: 1px solid var(--c-ink);"
+									></span>
+									{repo.language.name}
+								</span>
+							{/if}
+						</a>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	</section>
+{/if}
+
 <!-- SKILLS -->
-<section id="skills" class="py-24 px-6" style="background-color: var(--c-bg-alt);">
+<section id="skills" class="py-24 px-6" style:background-color={hasProjects ? null : 'var(--c-bg-alt)'}>
 	<div class="max-w-6xl mx-auto">
 		<p class="text-xs font-bold uppercase tracking-widest mb-3" style="color: var(--c-muted);">
-			03 / Skills
+			{sectionNo(3)} / Skills
 		</p>
 		<h2 class="text-4xl md:text-5xl font-bold mb-16">What I work with.</h2>
 
@@ -662,10 +771,10 @@
 </section>
 
 <!-- EDUCATION -->
-<section id="education" class="py-24 px-6">
+<section id="education" class="py-24 px-6" style:background-color={hasProjects ? 'var(--c-bg-alt)' : null}>
 	<div class="max-w-6xl mx-auto">
 		<p class="text-xs font-bold uppercase tracking-widest mb-3" style="color: var(--c-muted);">
-			04 / Education
+			{sectionNo(4)} / Education
 		</p>
 		<h2 class="text-4xl md:text-5xl font-bold mb-16">Academic background.</h2>
 
@@ -717,7 +826,7 @@
 <section id="contact" class="contact-section py-24 px-6">
 	<div class="max-w-6xl mx-auto grid lg:grid-cols-[1fr_auto] gap-8 items-start">
 		<div>
-			<p class="contact-muted text-xs font-bold uppercase tracking-widest mb-3">05 / Contact</p>
+			<p class="contact-muted text-xs font-bold uppercase tracking-widest mb-3">{sectionNo(5)} / Contact</p>
 			<h2 class="text-4xl md:text-5xl font-bold mb-6 leading-tight">
 				Let's build something<br />
 				<span class="relative inline-block">
