@@ -19,8 +19,10 @@
 		if (!canvas) return;
 
 		const el = canvas;
-		const ctx = el.getContext('2d');
-		if (!ctx) return;
+		const context = el.getContext('2d');
+		if (!context) return;
+		// Re-bind so the hoisted helper functions below see a non-null type.
+		const ctx = context;
 
 		const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const shouldAnimate = animate && !prefersReducedMotion;
