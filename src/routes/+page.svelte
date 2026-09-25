@@ -7,6 +7,7 @@
 	import { countUp } from '$lib/actions/countUp';
 	import { stamp } from '$lib/actions/stamp';
 	import Terminal from '$lib/components/Terminal.svelte';
+	import DitheredObject from '$lib/components/DitheredObject.svelte';
 
 	let menuOpen = $state(false);
 	let scrolled = $state(false);
@@ -714,47 +715,67 @@
 
 <!-- CONTACT -->
 <section id="contact" class="contact-section py-24 px-6">
-	<div class="max-w-6xl mx-auto">
-		<p class="contact-muted text-xs font-bold uppercase tracking-widest mb-3">05 / Contact</p>
-		<h2 class="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-			Let's build something<br />
-			<span class="relative inline-block">
-				great together
-				<span
-					class="absolute -bottom-1 left-0 right-0 h-3 -z-10"
-					style="background-color: var(--c-contact-hover);"
-				></span>
-			</span>
-			.
-		</h2>
+	<div class="max-w-6xl mx-auto grid lg:grid-cols-[1fr_auto] gap-8 items-start">
+		<div>
+			<p class="contact-muted text-xs font-bold uppercase tracking-widest mb-3">05 / Contact</p>
+			<h2 class="text-4xl md:text-5xl font-bold mb-6 leading-tight">
+				Let's build something<br />
+				<span class="relative inline-block">
+					great together
+					<span
+						class="absolute -bottom-1 left-0 right-0 h-3 -z-10"
+						style="background-color: var(--c-contact-hover);"
+					></span>
+				</span>
+				.
+			</h2>
 
-		<p class="contact-muted max-w-md mb-12 text-lg">
-			Open to new opportunities. Reach out and let's talk.
-		</p>
+			<p class="contact-muted max-w-md mb-12 text-lg">
+				Open to new opportunities. Reach out and let's talk.
+			</p>
 
-		<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
-			{#each [
-				{ label: 'Email', value: 'etienne.de.lange1@gmail.com', href: 'mailto:etienne.de.lange1@gmail.com' },
-				{ label: 'Phone', value: '+27 76 920 9230', href: 'tel:+27769209230' },
-				{ label: 'Location', value: 'Port Elizabeth, South Africa', href: null }
-			] as item (item.label)}
-				<div class="contact-card p-6">
-					<p class="contact-muted text-xs font-bold uppercase tracking-widest mb-2">{item.label}</p>
-					{#if item.href}
-						<a href={item.href} class="contact-link font-semibold text-sm break-all">{item.value}</a>
-					{:else}
-						<p class="font-semibold text-sm">{item.value}</p>
-					{/if}
-				</div>
-			{/each}
+			<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-16">
+				{#each [
+					{ label: 'Email', value: 'etienne.de.lange1@gmail.com', href: 'mailto:etienne.de.lange1@gmail.com' },
+					{ label: 'Phone', value: '+27 76 920 9230', href: 'tel:+27769209230' },
+					{ label: 'Location', value: 'Port Elizabeth, South Africa', href: null }
+				] as item (item.label)}
+					<div class="contact-card p-6">
+						<p class="contact-muted text-xs font-bold uppercase tracking-widest mb-2">{item.label}</p>
+						{#if item.href}
+							<a href={item.href} class="contact-link font-semibold text-sm break-all">{item.value}</a>
+						{:else}
+							<p class="font-semibold text-sm">{item.value}</p>
+						{/if}
+					</div>
+				{/each}
+			</div>
+
+			<div class="flex flex-wrap gap-4 items-center">
+				<a href="mailto:etienne.de.lange1@gmail.com" class="contact-cta px-8 py-4">
+					Send an email
+				</a>
+				<p class="contact-aside text-sm">Available for freelance & full-time roles</p>
+			</div>
 		</div>
 
-		<div class="flex flex-wrap gap-4 items-center">
-			<a href="mailto:etienne.de.lange1@gmail.com" class="contact-cta px-8 py-4">
-				Send an email
-			</a>
-			<p class="contact-aside text-sm">Available for freelance & full-time roles</p>
-		</div>
+		<DitheredObject
+			class="hidden lg:block w-64 h-64"
+			src="/paper-plane.svg"
+			method="halftone"
+			gridSize={5}
+			grayscale
+			highlight="#f5d90a"
+			environmentIntensity={0.15}
+			scale={2.6}
+			floatIntensity={2.5}
+			rotationIntensity={1.4}
+			floatSpeed={1.6}
+			orbit={true}
+			zoom={false}
+			autoRotate={false}
+			cameraDistance={4.2}
+		/>
 	</div>
 </section>
 
