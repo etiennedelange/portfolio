@@ -260,7 +260,7 @@
   }
 
   .terminal-line.is-cmd {
-    color: var(--c-accent);
+    color: var(--c-ink);
     font-weight: 700;
   }
 

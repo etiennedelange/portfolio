@@ -31,6 +31,10 @@
 				var span = to[0]-from[0], tt = span > 0 ? (h-from[0])/span : 0;
 				var fp = dark ? from[2] : from[1], tp = dark ? to[2] : to[1];
 				K.forEach(function(k,i){ document.documentElement.style.setProperty(k, lx(fp[i],tp[i],tt)); });
+				var acc = lx(fp[3],tp[3],tt), n = parseInt(acc.slice(1), 16);
+				var L = [(n>>16)&255,(n>>8)&255,n&255].map(function(v){v/=255;return v<=0.03928?v/12.92:Math.pow((v+0.055)/1.055,2.4);});
+				L = 0.2126*L[0] + 0.7152*L[1] + 0.0722*L[2];
+				document.documentElement.style.setProperty('--c-on-accent', (L+0.05)/0.0533 >= 1.05/(L+0.05) ? '#0a0a0a' : '#ffffff');
 			})();
 		</script>
 		%sveltekit.head%

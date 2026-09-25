@@ -26,7 +26,7 @@
 			<a
 				href={resolve('/')}
 				class="neo-btn px-6 py-3 inline-block"
-				style="background-color: var(--c-accent); color: #0a0a0a;"
+				style="background-color: var(--c-accent); color: var(--c-on-accent);"
 			>
 				Back to home
 			</a>

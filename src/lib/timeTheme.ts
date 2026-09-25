@@ -20,6 +20,22 @@ function lerpHex(a: string, b: string, t: number): string {
 	].map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
+function luminance(hex: string): number {
+	const n = parseInt(hex.replace('#', ''), 16);
+	const [r, g, b] = [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff].map((v) => {
+		const c = v / 255;
+		return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+	});
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+// Ink or white, whichever reads better on the accent. One of the two always
+// clears 4.5:1, so tags and buttons stay AA as the accent darkens at night.
+export function onAccent(accent: string): string {
+	const l = luminance(accent);
+	return (l + 0.05) / (0.0033 + 0.05) >= 1.05 / (l + 0.05) ? '#0a0a0a' : '#ffffff';
+}
+
 function lerpPalette(a: CSSPalette, b: CSSPalette, t: number): CSSPalette {
 	return Object.fromEntries(
 		(Object.keys(a) as PaletteKey[]).map((k) => [k, lerpHex(a[k], b[k], t)])
@@ -50,6 +66,7 @@ export function applyTimePalette(fractionalHour: number, isDark: boolean): void 
 	for (const [key, value] of Object.entries(palette)) {
 		root.style.setProperty(key, value);
 	}
+	root.style.setProperty('--c-on-accent', onAccent(palette['--c-accent']));
 
 	// The portrait duotone multiplies a grayscale photo over this tint, which
 	// only ever darkens the result — it needs the vivid (dark-mode) accent

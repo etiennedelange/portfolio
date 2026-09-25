@@ -358,7 +358,7 @@
 				<a
 					href="mailto:etienne.de.lange1@gmail.com"
 					class="neo-btn px-4 py-2 text-sm inline-block"
-					style="background-color: var(--c-accent); color: #0a0a0a;"
+					style="background-color: var(--c-accent); color: var(--c-on-accent);"
 				>
 					Hire me
 				</a>
@@ -436,7 +436,7 @@
 				<a
 					href="mailto:etienne.de.lange1@gmail.com"
 					class="neo-btn px-4 py-2 text-sm inline-block"
-					style="background-color: var(--c-accent); color: #0a0a0a;"
+					style="background-color: var(--c-accent); color: var(--c-on-accent);"
 				>
 					Hire me
 				</a>
@@ -478,7 +478,7 @@
 					<button
 						onclick={() => scrollTo('experience')}
 						class="neo-btn px-6 py-3 font-semibold"
-						style="background-color: var(--c-accent); color: #0a0a0a;"
+						style="background-color: var(--c-accent); color: var(--c-on-accent);"
 					>
 						View Experience
 					</button>
