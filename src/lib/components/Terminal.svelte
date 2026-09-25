@@ -10,9 +10,17 @@
   let input = $state('');
   let history = $state<Line[]>([{ type: 'out', text: 'Type "help" to see available commands.' }]);
   let inputEl = $state<HTMLInputElement | null>(null);
+  let dialogEl = $state<HTMLElement | null>(null);
 
+  // Focus the input on open; hand focus back to whatever had it on close.
   $effect(() => {
-    if (open) setTimeout(() => inputEl?.focus(), 50);
+    if (!open) return;
+    const returnFocus = document.activeElement as HTMLElement | null;
+    const timer = setTimeout(() => inputEl?.focus(), 50);
+    return () => {
+      clearTimeout(timer);
+      returnFocus?.focus();
+    };
   });
 
   function close() {
@@ -24,8 +32,27 @@
     if (e.target === e.currentTarget) close();
   }
 
+  function handleKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      close();
+      return;
+    }
+    if (e.key !== 'Tab' || !dialogEl) return;
+
+    // Keep Tab cycling inside the dialog while it's open.
+    const focusable = dialogEl.querySelectorAll<HTMLElement>('button, input');
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && (document.activeElement === first || document.activeElement === dialogEl)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   function handleInputKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') close();
     if (e.key === 'Enter') submit();
   }
 
@@ -129,9 +156,9 @@
 <div
   class="terminal-backdrop"
   onclick={handleBackdropClick}
-  onkeydown={(e) => e.key === 'Escape' && close()}
+  onkeydown={handleKeydown}
 >
-  <div class="terminal-window" role="dialog" aria-label="Command terminal" aria-modal="true">
+  <div bind:this={dialogEl} class="terminal-window" role="dialog" aria-label="Command terminal" aria-modal="true" tabindex="-1">
     <div class="terminal-header">
       <span class="terminal-title">terminal</span>
       <button class="terminal-close" onclick={close} aria-label="Close terminal">✕</button>
@@ -180,6 +207,7 @@
     box-shadow: 6px 6px 0 var(--c-shadow);
     background-color: var(--c-bg);
     font-family: 'Space Grotesk', monospace;
+    outline: none;
   }
 
   .terminal-header {

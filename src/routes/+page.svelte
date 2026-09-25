@@ -34,6 +34,7 @@
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.altKey && e.key === 't') sliderVisible = !sliderVisible;
+		if (e.key === 'Escape' && menuOpen) menuOpen = false;
 
 		const tag = (e.target as HTMLElement).tagName;
 		const editable = (e.target as HTMLElement).isContentEditable;
@@ -282,7 +283,8 @@
 
 	function scrollTo(id: string) {
 		menuOpen = false;
-		document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+		const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		document.getElementById(id)?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
 	}
 </script>
 
@@ -368,6 +370,8 @@
 			class="md:hidden flex flex-col gap-1.5 p-2 cursor-pointer"
 			onclick={() => (menuOpen = !menuOpen)}
 			aria-label="Toggle menu"
+			aria-expanded={menuOpen}
+			aria-controls="mobile-menu"
 		>
 			<span
 				class="block w-6 h-0.5 transition-all"
@@ -392,6 +396,7 @@
 	<!-- Mobile menu -->
 	{#if menuOpen}
 		<div
+			id="mobile-menu"
 			class="md:hidden px-6 py-4 flex flex-col gap-4"
 			style="background-color: var(--c-bg); border-top: 2px solid var(--c-ink);"
 		>
@@ -692,8 +697,8 @@
 										href={repo.homepageUrl}
 										target="_blank"
 										rel="noopener noreferrer"
-										class="ml-auto text-sm font-bold"
-										style="color: var(--c-accent);"
+										class="ml-auto text-sm font-bold underline decoration-2 underline-offset-4"
+										style="color: var(--c-ink); text-decoration-color: var(--c-accent);"
 									>Live →</a>
 								{/if}
 							</div>
@@ -761,7 +766,7 @@
 					</h3>
 					<div class="flex flex-wrap gap-2">
 						{#each group.skills as skill (skill)}
-							<span class="neo-tag" use:stamp onclick={() => handleSkillStamp(skill)}>{skill}</span>
+							<button type="button" class="neo-tag" use:stamp onclick={() => handleSkillStamp(skill)}>{skill}</button>
 						{/each}
 					</div>
 				</div>

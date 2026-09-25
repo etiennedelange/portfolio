@@ -42,7 +42,10 @@ export const countUp: Action<HTMLElement, { target: number | string; duration?: 
     requestAnimationFrame(tick);
   }
 
-  if (typeof IntersectionObserver !== 'undefined') {
+  const reduceMotion =
+    typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (typeof IntersectionObserver !== 'undefined' && !reduceMotion) {
     node.textContent = isNumeric ? '0' + (match?.[2] ?? '') : '';
     observer = new IntersectionObserver(
       (entries) => { if (entries[0].isIntersecting) animate(); },

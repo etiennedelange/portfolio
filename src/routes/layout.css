@@ -25,7 +25,7 @@
 	--c-contact-cta-bg: #f5d90a;
 	--c-contact-cta-text: #0a0a0a;
 	--c-contact-cta-border: #0a0a0a;
-	--c-contact-aside: #6b7280;
+	--c-contact-aside: #9ca3af;
 }
 
 /* ── Dark mode tokens — warm brown + cream ────────────────── */
@@ -371,4 +371,19 @@ html.dark .dm-toggle .icon-moon {
 	z-index: 100;
 	pointer-events: none;
 	transition: border-color 0.25s ease, background-color 0.25s ease;
+}
+
+/* ── Reduced motion ───────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+	}
 }
