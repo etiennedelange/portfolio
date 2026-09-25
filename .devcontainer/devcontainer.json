@@ -36,6 +36,9 @@
 		"CLAUDE_CONFIG_DIR": "/home/node/.claude",
 		"DISABLE_AUTOUPDATER": "1"
 	},
+	"remoteEnv": {
+		"PERSONAL_CONTEXT_TOKEN": "${localEnv:PERSONAL_CONTEXT_TOKEN}"
+	},
 	"mounts": ["source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume"],
 	"remoteUser": "node"
 }

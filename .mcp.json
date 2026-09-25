@@ -3,6 +3,13 @@
 		"svelte": {
 			"type": "http",
 			"url": "https://mcp.svelte.dev/mcp"
+		},
+		"personal-context": {
+			"type": "http",
+			"url": "https://personal-context-mcp.etiennedelange.workers.dev/mcp",
+			"headers": {
+				"Authorization": "Bearer ${PERSONAL_CONTEXT_TOKEN}"
+			}
 		}
 	}
 }
