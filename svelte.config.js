@@ -13,10 +13,8 @@ const config = {
 			mode: 'auto',
 			directives: {
 				'default-src': ['self'],
-				// wasm-unsafe-eval + blob workers + gstatic are for three's DRACO decoder.
-				'script-src': ['self', 'wasm-unsafe-eval'],
-				'worker-src': ['self', 'blob:'],
-				'connect-src': ['self', 'https://www.gstatic.com'],
+				'script-src': ['self'],
+				'connect-src': ['self'],
 				// Inline style attributes are used throughout the markup.
 				'style-src': ['self', 'unsafe-inline'],
 				'font-src': ['self'],

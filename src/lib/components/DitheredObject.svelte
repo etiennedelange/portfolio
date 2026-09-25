@@ -1,13 +1,10 @@
 <script module lang="ts">
-	import * as THREE from 'three';
-	import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-	import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-	import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+	import earcut from 'earcut';
 
 	export type DitherMethod = 'bayer' | 'halftone' | 'floyd';
 
 	export interface DitheredObjectOptions {
-		/** URL of the asset to display: GLB/glTF, SVG, PNG, JPEG, WebP, or GIF. Object URLs from a file input work too. The format is sniffed from the bytes, not the extension. */
+		/** URL of the image to extrude and display: SVG, PNG, JPEG, WebP, or GIF. Object URLs from a file input work too. The format is sniffed from the bytes, not the extension. */
 		src?: string;
 		/** Dither pattern: an ordered Bayer grid, clustered halftone dots, or Floyd-Steinberg error diffusion. */
 		method?: DitherMethod;
@@ -27,7 +24,7 @@
 		highlight?: string;
 		/** Brightness of the studio environment lighting. */
 		environmentIntensity?: number;
-		/** Roughness override applied to every material (0 to 1). Negative keeps the asset's own values. */
+		/** Roughness override (0 to 1). Negative keeps the default of 0.6. */
 		roughness?: number;
 		/** Size of the longest side of the object in scene units. The camera sits about 4 units away. */
 		scale?: number;
@@ -53,8 +50,6 @@
 		fov?: number;
 		/** Camera distance from the center of the object. */
 		cameraDistance?: number;
-		/** Base URL of the Draco decoder, fetched only when a model needs it. */
-		dracoDecoderPath?: string;
 		/** Called after an asset finishes loading. */
 		onLoad?: (() => void) | null;
 		/** Called when an asset fails to load. */
@@ -99,12 +94,12 @@
 		autoRotateSpeed: 2,
 		fov: 65,
 		cameraDistance: 4.2,
-		dracoDecoderPath: 'https://www.gstatic.com/draco/versioned/decoders/1.5.7/',
 		onLoad: null,
 		onError: null
 	};
 
 	const POST_VERT = `
+in vec3 position;
 out vec2 vUv;
 void main() {
   vUv = position.xy * 0.5 + 0.5;
@@ -238,118 +233,194 @@ void main() {
 		}
 	}
 
-	interface FormerDef {
-		kind: 'ring' | 'box';
-		intensity: number;
-		position: [number, number, number];
-		scale: [number, number, number];
-		lookAtCenter?: boolean;
-		withLight?: boolean;
+	/*
+	 * The object is lit only by a blurred "studio room" environment (gray walls, overhead
+	 * point lights, bright side panels and a ring light in the highlight color). The room is
+	 * baked into 9-term spherical harmonics of irradiance / π: one set for the room itself and
+	 * one per unit of ring-light color, so the highlight can still change at runtime.
+	 * Terms, in order: 1, y, z, x, xy, yz, 3z² − 1, xz, x² − y².
+	 */
+	const ROOM_SH = [1.31747, 1.39546, -0.10549, 0.02459, 0.06541, -0.12976, -0.13237, -0.14656, -0.43545];
+	const RING_SH = [0.09641, 0.10039, -0.01279, 0.03125, -0.01229, 0.01404, -0.00676, 0.04407, -0.00576];
+	const RING_INTENSITY = 15;
+	const BASE_ROUGHNESS = 0.6;
+
+	const MESH_VERT = `
+in vec3 position;
+in vec3 normal;
+in vec2 uv;
+uniform mat4 uModel;
+uniform mat4 uViewProjection;
+uniform mat3 uNormalMatrix;
+out vec3 vWorldPosition;
+out vec3 vNormal;
+out vec2 vUv;
+void main() {
+  vec4 world = uModel * vec4(position, 1.0);
+  vWorldPosition = world.xyz;
+  vNormal = uNormalMatrix * normal;
+  vUv = uv;
+  gl_Position = uViewProjection * world;
+}`;
+
+	// Image-based lighting term by term as three.js's MeshStandardMaterial (dielectric, IBL only).
+	const MESH_FRAG = `
+precision highp float;
+in vec3 vWorldPosition;
+in vec3 vNormal;
+in vec2 vUv;
+out vec4 outColor;
+uniform sampler2D uMap;
+uniform vec3 uSH[9];
+uniform vec3 uCameraPosition;
+uniform float uEnvIntensity;
+uniform float uRoughness;
+
+vec3 irradiance(vec3 n) {
+  vec3 e = uSH[0]
+    + uSH[1] * n.y + uSH[2] * n.z + uSH[3] * n.x
+    + uSH[4] * (n.x * n.y) + uSH[5] * (n.y * n.z) + uSH[6] * (3.0 * n.z * n.z - 1.0)
+    + uSH[7] * (n.x * n.z) + uSH[8] * (n.x * n.x - n.y * n.y);
+  return max(e, 0.0) * uEnvIntensity;
+}
+
+vec2 dfgApprox(float dotNV, float roughness) {
+  const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+  const vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+  vec4 r = roughness * c0 + c1;
+  float a004 = min(r.x * r.x, exp2(-9.28 * dotNV)) * r.x + r.y;
+  return vec2(-1.04, 1.04) * a004 + r.zw;
+}
+
+void main() {
+  vec3 n = normalize(vNormal);
+  vec3 v = normalize(uCameraPosition - vWorldPosition);
+  vec3 albedo = texture(uMap, vUv).rgb;
+  float roughness = clamp(uRoughness, 0.0525, 1.0);
+
+  vec3 reflected = normalize(mix(reflect(-v, n), n, roughness * roughness));
+  vec3 cosineIrradiance = irradiance(n);
+  vec3 radiance = irradiance(reflected);
+
+  const vec3 specular = vec3(0.04);
+  vec2 fab = dfgApprox(clamp(dot(n, v), 0.0, 1.0), roughness);
+  vec3 single = specular * fab.x + fab.y;
+  float ess = fab.x + fab.y;
+  float ems = 1.0 - ess;
+  vec3 favg = specular + (1.0 - specular) * 0.047619;
+  vec3 multi = single * favg / (1.0 - ems * favg) * ems;
+  vec3 total = single + multi;
+  vec3 diffuse = albedo * (1.0 - max(max(total.r, total.g), total.b));
+
+  outColor = vec4(diffuse * cosineIrradiance + single * radiance + multi * cosineIrradiance, 1.0);
+}`;
+
+
+	type Vec3 = [number, number, number];
+	type Mat4 = Float32Array;
+
+	function multiply(a: Mat4, b: Mat4): Mat4 {
+		const out = new Float32Array(16);
+		for (let col = 0; col < 4; col++) {
+			for (let row = 0; row < 4; row++) {
+				let sum = 0;
+				for (let k = 0; k < 4; k++) sum += a[k * 4 + row] * b[col * 4 + k];
+				out[col * 4 + row] = sum;
+			}
+		}
+		return out;
 	}
 
-	const ROOM_BLOCKS: Array<{
-		position: [number, number, number];
-		rotation: [number, number, number];
-		scale: [number, number, number];
-	}> = [
-		{
-			position: [-10.906, -1, 1.846],
-			rotation: [0, -0.195, 0],
-			scale: [2.328, 7.905, 4.651]
-		},
-		{
-			position: [-5.607, -0.754, -0.758],
-			rotation: [0, 0.994, 0],
-			scale: [1.97, 1.534, 3.955]
-		},
-		{
-			position: [6.167, -0.16, 7.803],
-			rotation: [0, 0.561, 0],
-			scale: [3.927, 6.285, 3.687]
-		},
-		{
-			position: [-2.017, 0.018, 6.124],
-			rotation: [0, 0.333, 0],
-			scale: [2.002, 4.566, 2.064]
-		},
-		{
-			position: [2.291, -0.756, -2.621],
-			rotation: [0, -0.286, 0],
-			scale: [1.546, 1.552, 1.496]
-		},
-		{
-			position: [-2.193, -0.369, -5.547],
-			rotation: [0, 0.516, 0],
-			scale: [3.875, 3.487, 2.986]
-		}
-	];
+	function perspective(fovDegrees: number, aspect: number, near: number, far: number): Mat4 {
+		const f = 1 / Math.tan((fovDegrees * Math.PI) / 360);
+		const out = new Float32Array(16);
+		out[0] = f / aspect;
+		out[5] = f;
+		out[10] = (far + near) / (near - far);
+		out[11] = -1;
+		out[14] = (2 * far * near) / (near - far);
+		return out;
+	}
 
-	const ROOM_FORMERS: FormerDef[] = [
-		{
-			kind: 'ring',
-			intensity: 15,
-			position: [2, 3, -2],
-			scale: [10, 10, 10],
-			lookAtCenter: true
-		},
-		{
-			kind: 'box',
-			intensity: 80,
-			position: [-14, 10, 8],
-			scale: [0.1, 2.5, 2.5]
-		},
-		{
-			kind: 'box',
-			intensity: 80,
-			position: [-14, 14, -4],
-			scale: [0.1, 2.5, 2.5],
-			withLight: true
-		},
-		{
-			kind: 'box',
-			intensity: 23,
-			position: [14, 12, 0],
-			scale: [0.1, 5, 5],
-			withLight: true
-		},
-		{
-			kind: 'box',
-			intensity: 16,
-			position: [0, 9, 14],
-			scale: [5, 5, 0.1],
-			withLight: true
-		},
-		{
-			kind: 'box',
-			intensity: 80,
-			position: [7, 8, -14],
-			scale: [2.5, 2.5, 0.1],
-			withLight: true
-		},
-		{
-			kind: 'box',
-			intensity: 80,
-			position: [-7, 16, -14],
-			scale: [2.5, 2.5, 0.1],
-			withLight: true
-		},
-		{
-			kind: 'box',
-			intensity: 1,
-			position: [0, 20, 0],
-			scale: [0.1, 0.1, 0.1],
-			withLight: true
-		},
-		{
-			kind: 'box',
-			intensity: 20,
-			position: [0, 15, 0],
-			scale: [10, 1, 10],
-			withLight: true
-		}
-	];
+	function lookAt(eye: Vec3): Mat4 {
+		let [zx, zy, zz] = eye;
+		const zl = Math.hypot(zx, zy, zz) || 1;
+		zx /= zl;
+		zy /= zl;
+		zz /= zl;
+		// x = up(0,1,0) × z
+		let xx = zz;
+		let xz = -zx;
+		const xl = Math.hypot(xx, xz) || 1;
+		xx /= xl;
+		xz /= xl;
+		// y = z × x
+		const yx = zy * xz;
+		const yy = zz * xx - zx * xz;
+		const yz = -zy * xx;
+		const out = new Float32Array(16);
+		out.set([xx, yx, zx, 0, 0, yy, zy, 0, xz, yz, zz, 0]);
+		out[12] = -(xx * eye[0] + xz * eye[2]);
+		out[13] = -(yx * eye[0] + yy * eye[1] + yz * eye[2]);
+		out[14] = -(zx * eye[0] + zy * eye[1] + zz * eye[2]);
+		out[15] = 1;
+		return out;
+	}
 
-	const CAMERA_DIR = new THREE.Vector3(0, -1, 4).normalize();
+	/** translate(position) · rotateX · rotateY · rotateZ · scale(s) · translate(-center) */
+	function modelMatrix(position: Vec3, rotation: Vec3, scale: number, center: Vec3): Mat4 {
+		const [cx, sx] = [Math.cos(rotation[0]), Math.sin(rotation[0])];
+		const [cy, sy] = [Math.cos(rotation[1]), Math.sin(rotation[1])];
+		const [cz, sz] = [Math.cos(rotation[2]), Math.sin(rotation[2])];
+		// Columns of Rx·Ry·Rz (three.js Euler order XYZ).
+		const r = [
+			cy * cz, cx * sz + sx * sy * cz, sx * sz - cx * sy * cz,
+			-cy * sz, cx * cz - sx * sy * sz, sx * cz + cx * sy * sz,
+			sy, -sx * cy, cx * cy
+		];
+		const out = new Float32Array(16);
+		for (let col = 0; col < 3; col++) {
+			for (let row = 0; row < 3; row++) out[col * 4 + row] = r[col * 3 + row] * scale;
+		}
+		for (let row = 0; row < 3; row++) {
+			out[12 + row] =
+				position[row] -
+				(out[row] * center[0] + out[4 + row] * center[1] + out[8 + row] * center[2]);
+		}
+		out[15] = 1;
+		return out;
+	}
+
+	function srgbToLinear(value: number) {
+		return value <= 0.04045 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+	}
+
+	let colorProbe: CanvasRenderingContext2D | null = null;
+
+	/** Parse any CSS color into linear RGB plus alpha. */
+	function parseColor(color: string): [number, number, number, number] {
+		colorProbe ??= document.createElement('canvas').getContext('2d');
+		if (!colorProbe) return [0, 0, 0, 1];
+		colorProbe.fillStyle = '#000';
+		colorProbe.fillStyle = color;
+		const value = String(colorProbe.fillStyle);
+		let channels: number[];
+		if (value.startsWith('#')) {
+			const hex = parseInt(value.slice(1), 16);
+			channels = [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255, 255].map((c) => c / 255);
+		} else {
+			const parts = value.match(/[\d.]+/g)?.map(Number) ?? [];
+			channels = [parts[0] / 255, parts[1] / 255, parts[2] / 255, parts[3] ?? 1];
+		}
+		return [
+			srgbToLinear(channels[0]),
+			srgbToLinear(channels[1]),
+			srgbToLinear(channels[2]),
+			channels[3]
+		];
+	}
+
+	const CAMERA_DIR: Vec3 = [0, -1 / Math.sqrt(17), 4 / Math.sqrt(17)];
 	const MODEL_LIFT = 0.3;
 	const RASTER_SIZE = 2048;
 	const TRACE_SIZE = 512;
@@ -365,7 +436,7 @@ void main() {
 		floyd: 2
 	};
 
-	type AssetKind = 'glb' | 'gltf' | 'svg' | 'bitmap';
+	type AssetKind = 'svg' | 'bitmap';
 
 	function sniffKind(bytes: Uint8Array): AssetKind | null {
 		if (bytes.length < 4) return null;
@@ -375,7 +446,6 @@ void main() {
 			}
 			return true;
 		};
-		if (ascii(0, 'glTF')) return 'glb';
 		if (bytes[0] === 0x89 && ascii(1, 'PNG')) return 'bitmap';
 		if (bytes[0] === 0xff && bytes[1] === 0xd8) return 'bitmap';
 		if (ascii(0, 'RIFF') && ascii(8, 'WEBP')) return 'bitmap';
@@ -389,7 +459,6 @@ void main() {
 		} catch {
 			return null;
 		}
-		if (head.startsWith('{')) return 'gltf';
 		if (head.startsWith('<')) return head.includes('<svg') ? 'svg' : null;
 		return null;
 	}
@@ -609,20 +678,109 @@ void main() {
 		return inside;
 	}
 
-	function buildShapes(canvas: HTMLCanvasElement, aspectW: number, aspectH: number) {
-		const rectangle = () =>
-			new THREE.Shape([
-				new THREE.Vector2(0, 0),
-				new THREE.Vector2(aspectW, 0),
-				new THREE.Vector2(aspectW, aspectH),
-				new THREE.Vector2(0, aspectH)
-			]);
+	interface ShapeRings {
+		outer: number[];
+		holes: number[][];
+	}
+
+	function signedArea(points: number[]) {
+		let area = 0;
+		for (let i = 0, j = points.length - 2; i < points.length; j = i, i += 2) {
+			area += (points[j] - points[i]) * (points[j + 1] + points[i + 1]);
+		}
+		return area / 2;
+	}
+
+	function oriented(points: number[], counterClockwise: boolean) {
+		if (signedArea(points) > 0 === counterClockwise) return points;
+		const reversed: number[] = [];
+		for (let i = points.length - 2; i >= 0; i -= 2) reversed.push(points[i], points[i + 1]);
+		return reversed;
+	}
+
+	interface Geometry {
+		positions: Float32Array;
+		normals: Float32Array;
+		uvs: Float32Array;
+		count: number;
+		center: Vec3;
+		maxDim: number;
+	}
+
+	/** Extrude flat rings into a closed slab: front and back caps plus flat-shaded side walls. */
+	function extrude(shapes: ShapeRings[], aspectW: number, aspectH: number): Geometry {
+		const positions: number[] = [];
+		const normals: number[] = [];
+		const push = (x: number, y: number, z: number, nx: number, ny: number, nz: number) => {
+			positions.push(x, y, z);
+			normals.push(nx, ny, nz);
+		};
+
+		for (const shape of shapes) {
+			const rings = [oriented(shape.outer, true), ...shape.holes.map((hole) => oriented(hole, false))];
+			const flat: number[] = [];
+			const holeIndices: number[] = [];
+			for (const [index, ring] of rings.entries()) {
+				if (index > 0) holeIndices.push(flat.length / 2);
+				flat.push(...ring);
+			}
+			const triangles = earcut(flat, holeIndices);
+			for (let i = 0; i < triangles.length; i += 3) {
+				const [a, b, c] = [triangles[i], triangles[i + 1], triangles[i + 2]];
+				for (const index of [a, b, c]) push(flat[index * 2], flat[index * 2 + 1], EXTRUDE_DEPTH, 0, 0, 1);
+				for (const index of [c, b, a]) push(flat[index * 2], flat[index * 2 + 1], 0, 0, 0, -1);
+			}
+
+			// Outer rings run counter-clockwise and holes clockwise, so (dy, -dx) always faces out of the solid.
+			for (const ring of rings) {
+				for (let i = 0; i < ring.length; i += 2) {
+					const j = (i + 2) % ring.length;
+					const [x0, y0, x1, y1] = [ring[i], ring[i + 1], ring[j], ring[j + 1]];
+					const length = Math.hypot(x1 - x0, y1 - y0) || 1;
+					const nx = (y1 - y0) / length;
+					const ny = -(x1 - x0) / length;
+					push(x0, y0, 0, nx, ny, 0);
+					push(x1, y1, 0, nx, ny, 0);
+					push(x1, y1, EXTRUDE_DEPTH, nx, ny, 0);
+					push(x0, y0, 0, nx, ny, 0);
+					push(x1, y1, EXTRUDE_DEPTH, nx, ny, 0);
+					push(x0, y0, EXTRUDE_DEPTH, nx, ny, 0);
+				}
+			}
+		}
+
+		const count = positions.length / 3;
+		const uvs = new Float32Array(count * 2);
+		const min: Vec3 = [Infinity, Infinity, Infinity];
+		const max: Vec3 = [-Infinity, -Infinity, -Infinity];
+		for (let i = 0; i < count; i++) {
+			uvs[i * 2] = positions[i * 3] / aspectW;
+			uvs[i * 2 + 1] = positions[i * 3 + 1] / aspectH;
+			for (let axis = 0; axis < 3; axis++) {
+				min[axis] = Math.min(min[axis], positions[i * 3 + axis]);
+				max[axis] = Math.max(max[axis], positions[i * 3 + axis]);
+			}
+		}
+		// Pad by the bevel the three.js version used so the object fits the frame the same way.
+		const size = [0, 1, 2].map((axis) => max[axis] - min[axis] + BEVEL_SIZE * 2);
+		return {
+			positions: new Float32Array(positions),
+			normals: new Float32Array(normals),
+			uvs,
+			count,
+			center: [0, 1, 2].map((axis) => (min[axis] + max[axis]) / 2) as Vec3,
+			maxDim: Math.max(size[0], size[1], size[2], 1e-4)
+		};
+	}
+
+	function buildShapes(canvas: HTMLCanvasElement, aspectW: number, aspectH: number): ShapeRings[] {
+		const rectangle = () => [{ outer: [0, 0, aspectW, 0, aspectW, aspectH, 0, aspectH], holes: [] }];
 
 		const scale = Math.min(1, TRACE_SIZE / Math.max(canvas.width, canvas.height, 1));
 		const trace =
 			scale < 1 ? drawToCanvas(canvas, canvas.width * scale, canvas.height * scale) : canvas;
 		const ctx = trace.getContext('2d', { willReadFrequently: true });
-		if (!ctx) return [rectangle()];
+		if (!ctx) return rectangle();
 
 		const traceW = trace.width;
 		const traceH = trace.height;
@@ -638,7 +796,7 @@ void main() {
 				covered += on;
 			}
 		}
-		if (covered >= traceW * traceH * 0.995) return [rectangle()];
+		if (covered >= traceW * traceH * 0.995) return rectangle();
 
 		const rings = traceContours(inside, width, height)
 			.map((points) => simplify(points, SIMPLIFY_TOLERANCE))
@@ -646,7 +804,7 @@ void main() {
 			.map((points) => ({ points, area: ringArea(points), depth: 0 }))
 			.sort((a, b) => b.area - a.area)
 			.slice(0, MAX_CONTOURS);
-		if (!rings.length) return [rectangle()];
+		if (!rings.length) return rectangle();
 
 		for (const ring of rings) {
 			for (const other of rings) {
@@ -660,22 +818,20 @@ void main() {
 			}
 		}
 
-		const toPath = (points: number[]) => {
-			const path: THREE.Vector2[] = [];
+		const toShapeSpace = (points: number[]) => {
+			const out: number[] = [];
 			for (let i = 0; i < points.length; i += 2) {
-				path.push(
-					new THREE.Vector2(
-						((points[i] - 0.5) / traceW) * aspectW,
-						(1 - (points[i + 1] - 0.5) / traceH) * aspectH
-					)
+				out.push(
+					((points[i] - 0.5) / traceW) * aspectW,
+					(1 - (points[i + 1] - 0.5) / traceH) * aspectH
 				);
 			}
-			return path;
+			return out;
 		};
 
-		const shapes = new Map<(typeof rings)[number], THREE.Shape>();
+		const shapes = new Map<(typeof rings)[number], ShapeRings>();
 		for (const ring of rings) {
-			if (ring.depth % 2 === 0) shapes.set(ring, new THREE.Shape(toPath(ring.points)));
+			if (ring.depth % 2 === 0) shapes.set(ring, { outer: toShapeSpace(ring.points), holes: [] });
 		}
 		for (const ring of rings) {
 			if (ring.depth % 2 === 0) continue;
@@ -686,58 +842,62 @@ void main() {
 				if (!parent || other.area < parent.area) parent = other;
 			}
 			const shape = parent ? shapes.get(parent) : undefined;
-			if (shape) shape.holes.push(new THREE.Path(toPath(ring.points)));
+			if (shape) shape.holes.push(toShapeSpace(ring.points));
 		}
 		const result = [...shapes.values()];
-		return result.length ? result : [rectangle()];
+		return result.length ? result : rectangle();
 	}
 
-	function createImageObject(canvas: HTMLCanvasElement, anisotropy: number): THREE.Mesh {
-		const longest = Math.max(canvas.width, canvas.height, 1);
-		const aspectW = canvas.width / longest;
-		const aspectH = canvas.height / longest;
-		const geometry = new THREE.ExtrudeGeometry(buildShapes(canvas, aspectW, aspectH), {
-			depth: EXTRUDE_DEPTH,
-			bevelEnabled: true,
-			bevelThickness: BEVEL_SIZE,
-			bevelSize: BEVEL_SIZE,
-			bevelOffset: 0,
-			bevelSegments: 2,
-			steps: 1,
-			curveSegments: 1
-		});
-		const position = geometry.getAttribute('position');
-		const uv = new Float32Array(position.count * 2);
-		for (let i = 0; i < position.count; i++) {
-			uv[i * 2] = position.getX(i) / aspectW;
-			uv[i * 2 + 1] = position.getY(i) / aspectH;
-		}
-		geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-		const texture = new THREE.CanvasTexture(canvas);
-		texture.colorSpace = THREE.SRGBColorSpace;
-		texture.anisotropy = anisotropy;
-		const material = new THREE.MeshStandardMaterial({
-			map: texture,
-			roughness: 0.6,
-			metalness: 0
-		});
-		return new THREE.Mesh(geometry, material);
-	}
-
-	function disposeObject(root: THREE.Object3D) {
-		root.traverse((node) => {
-			const mesh = node as THREE.Mesh;
-			if (mesh.geometry) mesh.geometry.dispose();
-			const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-			for (const material of materials) {
-				if (!material) continue;
-				for (const value of Object.values(material)) {
-					if (!(value instanceof THREE.Texture)) continue;
-					value.dispose();
-				}
-				material.dispose();
+	function compile(gl: WebGL2RenderingContext, vertex: string, fragment: string) {
+		const program = gl.createProgram();
+		for (const [type, source] of [
+			[gl.VERTEX_SHADER, vertex],
+			[gl.FRAGMENT_SHADER, fragment]
+		] as const) {
+			const shader = gl.createShader(type);
+			if (!shader) throw new Error('Could not create shader');
+			gl.shaderSource(shader, `#version 300 es\nprecision highp float;\n${source}`);
+			gl.compileShader(shader);
+			if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+				throw new Error(gl.getShaderInfoLog(shader) ?? 'Shader compile failed');
 			}
-		});
+			gl.attachShader(program, shader);
+			gl.deleteShader(shader);
+		}
+		gl.bindAttribLocation(program, 0, 'position');
+		gl.bindAttribLocation(program, 1, 'normal');
+		gl.bindAttribLocation(program, 2, 'uv');
+		gl.linkProgram(program);
+		if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+			throw new Error(gl.getProgramInfoLog(program) ?? 'Program link failed');
+		}
+		const uniforms: Record<string, WebGLUniformLocation | null> = {};
+		const location = (name: string) => {
+			if (!(name in uniforms)) uniforms[name] = gl.getUniformLocation(program, name);
+			return uniforms[name];
+		};
+		return { program, location };
+	}
+
+	function createTexture(
+		gl: WebGL2RenderingContext,
+		internalFormat: number,
+		format: number,
+		width: number,
+		height: number,
+		filter: number,
+		data: ArrayBufferView | null = null
+	) {
+		const texture = gl.createTexture();
+		gl.bindTexture(gl.TEXTURE_2D, texture);
+		gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+		gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, width, height, 0, format, gl.UNSIGNED_BYTE, data);
+		gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, filter);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, filter);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+		return texture;
 	}
 
 	export function createDitheredObject(
@@ -747,227 +907,252 @@ void main() {
 		const { canvas } = elements;
 		const config: Required<DitheredObjectOptions> = { ...DEFAULTS, ...options };
 
-		let renderer: THREE.WebGLRenderer;
+		const context = canvas.getContext('webgl2', {
+			alpha: true,
+			antialias: false,
+			depth: false,
+			premultipliedAlpha: true,
+			powerPreference: 'high-performance'
+		});
+		if (!context) return null;
+		const gl = context;
+
+		let meshProgram: ReturnType<typeof compile>;
+		let postProgram: ReturnType<typeof compile>;
+		let levelProgram: ReturnType<typeof compile>;
 		try {
-			renderer = new THREE.WebGLRenderer({
-				canvas,
-				antialias: false,
-				alpha: true,
-				powerPreference: 'high-performance'
-			});
+			meshProgram = compile(gl, MESH_VERT, MESH_FRAG);
+			postProgram = compile(gl, POST_VERT, POST_FRAG);
+			levelProgram = compile(gl, POST_VERT, LEVEL_FRAG);
 		} catch {
 			return null;
 		}
-		renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
-		const scene = new THREE.Scene();
-		const camera = new THREE.PerspectiveCamera(config.fov, 1, 0.1, 200);
-		camera.position.copy(CAMERA_DIR).multiplyScalar(config.cameraDistance);
+		const anisotropy = gl.getExtension('EXT_texture_filter_anisotropic');
+		const maxAnisotropy = anisotropy
+			? (gl.getParameter(anisotropy.MAX_TEXTURE_MAX_ANISOTROPY_EXT) as number)
+			: 1;
+		const samples = Math.min(4, gl.getParameter(gl.MAX_SAMPLES) as number);
 
-		const floatGroup = new THREE.Group();
-		floatGroup.position.y = MODEL_LIFT;
-		const fitGroup = new THREE.Group();
-		floatGroup.add(fitGroup);
-		scene.add(floatGroup);
+		// Fullscreen triangle shared by the post and level passes.
+		const quadVao = gl.createVertexArray();
+		const quadBuffer = gl.createBuffer();
+		gl.bindVertexArray(quadVao);
+		gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), gl.STATIC_DRAW);
+		gl.enableVertexAttribArray(0);
+		gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+		gl.bindVertexArray(null);
 
-		const controls = new OrbitControls(camera, canvas);
-		controls.enableDamping = true;
-		controls.enablePan = false;
+		// Scene pass: render multisampled, then resolve into a texture the post pass samples.
+		const scene = {
+			width: 0,
+			height: 0,
+			msaaFbo: gl.createFramebuffer(),
+			color: gl.createRenderbuffer(),
+			depth: gl.createRenderbuffer(),
+			resolveFbo: gl.createFramebuffer(),
+			texture: null as WebGLTexture | null
+		};
 
-		const target = new THREE.WebGLRenderTarget(1, 1, { samples: 4 });
-		target.texture.colorSpace = THREE.SRGBColorSpace;
-
-		const postMaterial = new THREE.ShaderMaterial({
-			glslVersion: THREE.GLSL3,
-			vertexShader: POST_VERT,
-			fragmentShader: POST_FRAG,
-			uniforms: {
-				tDiffuse: { value: target.texture },
-				uResolution: { value: new THREE.Vector2(1, 1) },
-				uGridSize: { value: 4 },
-				uPixelSizeRatio: { value: 1 },
-				uGrayscale: { value: 1 },
-				uInvert: { value: 0 },
-				uDither: { value: 1 },
-				uMethod: { value: 0 },
-				tMask: { value: null }
-			},
-			depthTest: false,
-			depthWrite: false,
-			blending: THREE.NoBlending
-		});
-		const postGeometry = new THREE.BufferGeometry();
-		postGeometry.setAttribute(
-			'position',
-			new THREE.BufferAttribute(new Float32Array([-1, -1, 0, 3, -1, 0, -1, 3, 0]), 3)
-		);
-		const postMesh = new THREE.Mesh(postGeometry, postMaterial);
-		postMesh.frustumCulled = false;
-		const postScene = new THREE.Scene();
-		postScene.add(postMesh);
-		const postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-		const levelMaterial = new THREE.ShaderMaterial({
-			glslVersion: THREE.GLSL3,
-			vertexShader: POST_VERT,
-			fragmentShader: LEVEL_FRAG,
-			uniforms: {
-				tDiffuse: { value: target.texture },
-				uResolution: postMaterial.uniforms.uResolution,
-				uGridSize: postMaterial.uniforms.uGridSize,
-				uPixelSizeRatio: postMaterial.uniforms.uPixelSizeRatio
-			},
-			depthTest: false,
-			depthWrite: false,
-			blending: THREE.NoBlending
-		});
-		const levelMesh = new THREE.Mesh(postGeometry, levelMaterial);
-		levelMesh.frustumCulled = false;
-		const levelScene = new THREE.Scene();
-		levelScene.add(levelMesh);
+		function resizeScene(width: number, height: number) {
+			if (scene.width === width && scene.height === height) return;
+			scene.width = width;
+			scene.height = height;
+			gl.bindRenderbuffer(gl.RENDERBUFFER, scene.color);
+			gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.SRGB8_ALPHA8, width, height);
+			gl.bindRenderbuffer(gl.RENDERBUFFER, scene.depth);
+			gl.renderbufferStorageMultisample(gl.RENDERBUFFER, samples, gl.DEPTH_COMPONENT24, width, height);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, scene.msaaFbo);
+			gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, scene.color);
+			gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, scene.depth);
+			gl.deleteTexture(scene.texture);
+			scene.texture = createTexture(gl, gl.SRGB8_ALPHA8, gl.RGBA, width, height, gl.LINEAR);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, scene.resolveFbo);
+			gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, scene.texture, 0);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+		}
 
 		const diffusion = {
-			target: null as THREE.WebGLRenderTarget | null,
-			texture: null as THREE.DataTexture | null,
+			fbo: gl.createFramebuffer(),
+			target: null as WebGLTexture | null,
+			mask: null as WebGLTexture | null,
+			buffer: gl.createBuffer(),
+			sync: null as WebGLSync | null,
+			syncGeneration: 0,
 			pixels: new Uint8Array(0),
-			mask: new Uint8Array(0),
+			maskData: new Uint8Array(0),
 			rows: [new Float32Array(0), new Float32Array(0)] as [Float32Array, Float32Array],
 			width: 0,
 			height: 0,
 			generation: 0,
-			pending: false,
 			ready: false
 		};
 
-		const pmrem = new THREE.PMREMGenerator(renderer);
-		let roomScene: THREE.Scene | null = null;
-		let ringMaterial: THREE.MeshBasicMaterial | null = null;
-		let envTarget: THREE.WebGLRenderTarget | null = null;
-		let envDirty = true;
+		const post = {
+			resolution: [1, 1] as [number, number],
+			gridSize: 4,
+			pixelSizeRatio: 1,
+			grayscale: 1,
+			invert: 0,
+			dither: 1,
+			method: 0
+		};
 
-		function buildRoom() {
-			roomScene = new THREE.Scene();
-			const room = new THREE.Group();
-			room.position.set(0, -0.5, 0);
-			roomScene.add(room);
+		// Camera orbits the origin; the spherical delta and damping mirror three's OrbitControls.
+		const camera = {
+			position: CAMERA_DIR.map((c) => c * config.cameraDistance) as Vec3,
+			aspect: 1,
+			theta: 0,
+			phi: 0,
+			deltaTheta: 0,
+			deltaPhi: 0,
+			zoom: 1
+		};
+		const DAMPING = 0.05;
 
-			for (const [x, z] of [
-				[-15, 15],
-				[15, 15],
-				[15, -15],
-				[-15, -15]
-			]) {
-				const spot = new THREE.SpotLight(0xffffff, 2, 0, 0.2, 1, 0);
-				spot.position.set(x, 20, z);
-				room.add(spot, spot.target);
+		function updateCamera() {
+			const [x, y, z] = camera.position;
+			let radius = Math.hypot(x, y, z) || 1e-6;
+			let theta = Math.atan2(x, z);
+			let phi = Math.acos(Math.min(Math.max(y / radius, -1), 1));
+			if (config.autoRotate && !reducedMotion && !drag) {
+				camera.deltaTheta -= ((2 * Math.PI) / 60 / 60) * config.autoRotateSpeed;
 			}
-			const center = new THREE.PointLight(0xffffff, 100, 28, 2);
-			center.position.set(0.5, 14, 0.5);
-			room.add(center);
+			theta += camera.deltaTheta * DAMPING;
+			phi += camera.deltaPhi * DAMPING;
+			phi = Math.min(Math.max(phi, 1e-6), Math.PI - 1e-6);
+			radius *= camera.zoom;
+			camera.zoom = 1;
+			camera.deltaTheta *= 1 - DAMPING;
+			camera.deltaPhi *= 1 - DAMPING;
+			camera.position = [
+				radius * Math.sin(phi) * Math.sin(theta),
+				radius * Math.cos(phi),
+				radius * Math.sin(phi) * Math.cos(theta)
+			];
+		}
 
-			const box = new THREE.BoxGeometry();
-			const shell = new THREE.Mesh(
-				box,
-				new THREE.MeshStandardMaterial({ color: 'gray', side: THREE.BackSide })
-			);
-			shell.position.set(0, 13.2, 0);
-			shell.scale.set(31.5, 28.5, 31.5);
-			room.add(shell);
+		const pointers: Array<{ id: number; x: number; y: number }> = [];
+		let drag = false;
+		let pinchDistance = 0;
 
-			const white = new THREE.MeshStandardMaterial({ color: 0xffffff });
-			for (const def of ROOM_BLOCKS) {
-				const mesh = new THREE.Mesh(box, white);
-				mesh.position.set(...def.position);
-				mesh.rotation.set(...def.rotation);
-				mesh.scale.set(...def.scale);
-				room.add(mesh);
-			}
+		function pinchSpan() {
+			const [a, b] = pointers;
+			return Math.hypot(a.x - b.x, a.y - b.y);
+		}
 
-			for (const def of ROOM_FORMERS) {
-				const geometry =
-					def.kind === 'ring' ? new THREE.RingGeometry(0.5, 1, 64) : new THREE.BoxGeometry();
-				const material = new THREE.MeshBasicMaterial({
-					side: THREE.DoubleSide,
-					toneMapped: false
-				});
-				material.color
-					.set(def.kind === 'ring' ? config.highlight : '#ffffff')
-					.multiplyScalar(def.intensity);
-				if (def.kind === 'ring') ringMaterial = material;
-				const mesh = new THREE.Mesh(geometry, material);
-				mesh.position.set(...def.position);
-				mesh.scale.set(...def.scale);
-				if (def.lookAtCenter) mesh.lookAt(0, 0, 0);
-				room.add(mesh);
-				if (def.withLight) {
-					const light = new THREE.PointLight(0xffffff, 100, 28, 2);
-					light.position.set(...def.position);
-					room.add(light);
-				}
+		function onPointerDown(event: PointerEvent) {
+			if (!config.orbit && !config.zoom) return;
+			canvas.setPointerCapture(event.pointerId);
+			pointers.push({ id: event.pointerId, x: event.clientX, y: event.clientY });
+			drag = true;
+			if (pointers.length === 2) pinchDistance = pinchSpan();
+		}
+
+		function onPointerMove(event: PointerEvent) {
+			const pointer = pointers.find((p) => p.id === event.pointerId);
+			if (!pointer) return;
+			const previous = { x: pointer.x, y: pointer.y };
+			const current = { x: event.clientX, y: event.clientY };
+			Object.assign(pointer, current);
+			if (pointers.length === 1 && config.orbit) {
+				const height = canvas.clientHeight || 1;
+				camera.deltaTheta -= (2 * Math.PI * (current.x - previous.x)) / height;
+				camera.deltaPhi -= (2 * Math.PI * (current.y - previous.y)) / height;
+			} else if (pointers.length === 2 && config.zoom) {
+				const span = pinchSpan();
+				if (pinchDistance > 0 && span > 0) camera.zoom *= pinchDistance / span;
+				pinchDistance = span;
 			}
 		}
 
-		function refreshEnvironment() {
-			if (!roomScene) buildRoom();
-			if (ringMaterial) {
-				ringMaterial.color.set(config.highlight).multiplyScalar(15);
-			}
-			envTarget?.dispose();
-			envTarget = pmrem.fromScene(roomScene!, 0, 0.1, 1000);
-			scene.environment = envTarget.texture;
+		function onPointerUp(event: PointerEvent) {
+			const index = pointers.findIndex((p) => p.id === event.pointerId);
+			if (index >= 0) pointers.splice(index, 1);
+			if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+			drag = pointers.length > 0;
+			pinchDistance = pointers.length === 2 ? pinchSpan() : 0;
 		}
 
-		let model: THREE.Object3D | null = null;
-		let modelMaxDim = 1;
+		function onWheel(event: WheelEvent) {
+			if (!config.zoom) return;
+			event.preventDefault();
+			const scale = Math.pow(0.95, Math.abs(event.deltaY * 0.01));
+			camera.zoom *= event.deltaY < 0 ? scale : 1 / scale;
+		}
+
+		function onContextMenu(event: Event) {
+			if (config.orbit || config.zoom) event.preventDefault();
+		}
+
+		canvas.addEventListener('pointerdown', onPointerDown);
+		canvas.addEventListener('pointermove', onPointerMove);
+		canvas.addEventListener('pointerup', onPointerUp);
+		canvas.addEventListener('pointercancel', onPointerUp);
+		canvas.addEventListener('wheel', onWheel, { passive: false });
+		canvas.addEventListener('contextmenu', onContextMenu);
+
+		interface Model {
+			vao: WebGLVertexArrayObject;
+			buffers: WebGLBuffer[];
+			texture: WebGLTexture;
+			count: number;
+			center: Vec3;
+			maxDim: number;
+		}
+
+		let model: Model | null = null;
 		let loadedSrc: string | null = null;
 		let loadToken = 0;
 		let disposed = false;
 
-		const loader = new GLTFLoader();
-		const draco = new DRACOLoader();
-		draco.setDecoderPath(config.dracoDecoderPath);
-		loader.setDRACOLoader(draco);
-
-		function applyRoughness() {
-			if (!model) return;
-			model.traverse((node) => {
-				const mesh = node as THREE.Mesh;
-				const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-				for (const material of materials) {
-					const standard = material as THREE.MeshStandardMaterial;
-					if (!standard || typeof standard.roughness !== 'number') continue;
-					if (standard.userData.baseRoughness === undefined) {
-						standard.userData.baseRoughness = standard.roughness;
-					}
-					standard.roughness =
-						config.roughness >= 0 ? config.roughness : standard.userData.baseRoughness;
-				}
-			});
-		}
-
-		function applyFit() {
-			if (!model) return;
-			fitGroup.scale.setScalar(config.scale / modelMaxDim);
-		}
-
 		function clearModel() {
 			if (!model) return;
-			fitGroup.remove(model);
-			disposeObject(model);
+			gl.deleteVertexArray(model.vao);
+			for (const buffer of model.buffers) gl.deleteBuffer(buffer);
+			gl.deleteTexture(model.texture);
 			model = null;
 		}
 
-		function adoptModel(object: THREE.Object3D) {
-			clearModel();
-			model = object;
-			const bounds = new THREE.Box3().setFromObject(model);
-			const size = bounds.getSize(new THREE.Vector3());
-			const offset = bounds.getCenter(new THREE.Vector3());
-			modelMaxDim = Math.max(size.x, size.y, size.z, 1e-4);
-			model.position.sub(offset);
-			applyRoughness();
-			applyFit();
-			fitGroup.add(model);
+		function createModel(canvasSource: HTMLCanvasElement): Model {
+			const longest = Math.max(canvasSource.width, canvasSource.height, 1);
+			const aspectW = canvasSource.width / longest;
+			const aspectH = canvasSource.height / longest;
+			const geometry = extrude(buildShapes(canvasSource, aspectW, aspectH), aspectW, aspectH);
+
+			const vao = gl.createVertexArray();
+			gl.bindVertexArray(vao);
+			const buffers = [geometry.positions, geometry.normals, geometry.uvs].map((data, index) => {
+				const buffer = gl.createBuffer();
+				gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+				gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+				gl.enableVertexAttribArray(index);
+				gl.vertexAttribPointer(index, index === 2 ? 2 : 3, gl.FLOAT, false, 0, 0);
+				return buffer;
+			});
+			gl.bindVertexArray(null);
+
+			const texture = gl.createTexture();
+			gl.bindTexture(gl.TEXTURE_2D, texture);
+			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.SRGB8_ALPHA8, gl.RGBA, gl.UNSIGNED_BYTE, canvasSource);
+			gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+			gl.generateMipmap(gl.TEXTURE_2D);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+			if (anisotropy) {
+				gl.texParameterf(gl.TEXTURE_2D, anisotropy.TEXTURE_MAX_ANISOTROPY_EXT, maxAnisotropy);
+			}
+
+			return {
+				vao,
+				buffers,
+				texture,
+				count: geometry.count,
+				center: geometry.center,
+				maxDim: geometry.maxDim
+			};
 		}
 
 		async function loadAsset() {
@@ -984,28 +1169,13 @@ void main() {
 				if (!response.ok) throw new Error(`HTTP ${response.status}`);
 				const buffer = await response.arrayBuffer();
 				if (disposed || token !== loadToken) return;
-				const bytes = new Uint8Array(buffer);
-				const kind = sniffKind(bytes);
+				const kind = sniffKind(new Uint8Array(buffer));
 				if (!kind) throw new Error('Unrecognized asset format');
-
-				if (kind === 'glb' || kind === 'gltf') {
-					draco.setDecoderPath(config.dracoDecoderPath);
-					const resourcePath = src.slice(0, src.lastIndexOf('/') + 1);
-					const data = kind === 'glb' ? buffer : new TextDecoder().decode(bytes);
-					const gltf = await loader.parseAsync(data, resourcePath);
-					if (disposed || token !== loadToken) {
-						disposeObject(gltf.scene);
-						return;
-					}
-					adoptModel(gltf.scene);
-				} else {
-					const blob = new Blob([buffer], {
-						type: kind === 'svg' ? 'image/svg+xml' : ''
-					});
-					const source = await decodeImage(blob, kind);
-					if (disposed || token !== loadToken) return;
-					adoptModel(createImageObject(source, renderer.capabilities.getMaxAnisotropy()));
-				}
+				const blob = new Blob([buffer], { type: kind === 'svg' ? 'image/svg+xml' : '' });
+				const source = await decodeImage(blob, kind);
+				if (disposed || token !== loadToken) return;
+				clearModel();
+				model = createModel(source);
 				config.onLoad?.();
 			} catch (error) {
 				if (disposed || token !== loadToken) return;
@@ -1017,16 +1187,18 @@ void main() {
 		let reducedMotion = motionQuery.matches;
 		const onMotionChange = () => {
 			reducedMotion = motionQuery.matches;
-			if (reducedMotion) floatGroup.rotation.set(0, 0, 0);
+			if (reducedMotion) floatRotation = [0, 0, 0];
 			applyOptions();
 		};
 		motionQuery.addEventListener('change', onMotionChange);
 
 		function releaseDiffusion() {
-			diffusion.target?.dispose();
-			diffusion.texture?.dispose();
+			if (diffusion.sync) gl.deleteSync(diffusion.sync);
+			diffusion.sync = null;
+			gl.deleteTexture(diffusion.target);
+			gl.deleteTexture(diffusion.mask);
 			diffusion.target = null;
-			diffusion.texture = null;
+			diffusion.mask = null;
 		}
 
 		function methodIndex() {
@@ -1035,103 +1207,110 @@ void main() {
 		}
 
 		function resizeDiffusion(width: number, height: number) {
-			if (diffusion.target && diffusion.width === width && diffusion.height === height) {
-				return;
-			}
+			if (diffusion.target && diffusion.width === width && diffusion.height === height) return;
 			releaseDiffusion();
 			diffusion.width = width;
 			diffusion.height = height;
 			diffusion.generation += 1;
 			diffusion.ready = false;
-			diffusion.target = new THREE.WebGLRenderTarget(width, height, {
-				depthBuffer: false,
-				stencilBuffer: false,
-				minFilter: THREE.NearestFilter,
-				magFilter: THREE.NearestFilter
-			});
+			diffusion.target = createTexture(gl, gl.RGBA8, gl.RGBA, width, height, gl.NEAREST);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, diffusion.fbo);
+			gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, diffusion.target, 0);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 			diffusion.pixels = new Uint8Array(width * height * 4);
-			diffusion.mask = new Uint8Array(width * height);
+			diffusion.maskData = new Uint8Array(width * height);
+			diffusion.mask = createTexture(gl, gl.R8, gl.RED, width, height, gl.NEAREST, diffusion.maskData);
 			diffusion.rows = [new Float32Array(width + 2), new Float32Array(width + 2)];
-			diffusion.texture = new THREE.DataTexture(diffusion.mask, width, height, THREE.RedFormat);
-			diffusion.texture.needsUpdate = true;
-			postMaterial.uniforms.tMask.value = diffusion.texture;
-			postMaterial.uniforms.uMethod.value = methodIndex();
+			gl.bindBuffer(gl.PIXEL_PACK_BUFFER, diffusion.buffer);
+			gl.bufferData(gl.PIXEL_PACK_BUFFER, diffusion.pixels.byteLength, gl.STREAM_READ);
+			gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+			post.method = methodIndex();
 		}
 
+		/** Collect the previous async readback (if the GPU is done), then queue the next one. */
 		function updateDiffusion() {
-			if (diffusion.pending) return;
-			const resolution = postMaterial.uniforms.uResolution.value as THREE.Vector2;
-			const gridSize = postMaterial.uniforms.uGridSize.value as number;
-			resizeDiffusion(
-				Math.max(Math.ceil(resolution.x / gridSize), 1),
-				Math.max(Math.ceil(resolution.y / gridSize), 1)
-			);
-			const surface = diffusion.target;
-			if (!surface) return;
-			renderer.setRenderTarget(surface);
-			renderer.render(levelScene, postCamera);
-			const { generation, width, height, pixels } = diffusion;
-			diffusion.pending = true;
-			renderer
-				.readRenderTargetPixelsAsync(surface, 0, 0, width, height, pixels)
-				.then(() => {
-					diffusion.pending = false;
-					if (disposed || generation !== diffusion.generation) return;
-					diffuse(pixels, diffusion.mask, diffusion.rows, width, height);
-					if (diffusion.texture) diffusion.texture.needsUpdate = true;
+			if (diffusion.sync) {
+				const status = gl.clientWaitSync(diffusion.sync, 0, 0);
+				if (status === gl.TIMEOUT_EXPIRED) return;
+				gl.deleteSync(diffusion.sync);
+				diffusion.sync = null;
+				if (status !== gl.WAIT_FAILED && diffusion.syncGeneration === diffusion.generation) {
+					const { width, height, pixels, maskData } = diffusion;
+					gl.bindBuffer(gl.PIXEL_PACK_BUFFER, diffusion.buffer);
+					gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, pixels);
+					gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+					diffuse(pixels, maskData, diffusion.rows, width, height);
+					gl.bindTexture(gl.TEXTURE_2D, diffusion.mask);
+					gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+					gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, width, height, gl.RED, gl.UNSIGNED_BYTE, maskData);
+					gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
 					if (!diffusion.ready) {
 						diffusion.ready = true;
-						postMaterial.uniforms.uMethod.value = methodIndex();
+						post.method = methodIndex();
 					}
-				})
-				.catch(() => {
-					diffusion.pending = false;
-				});
+				}
+			}
+
+			resizeDiffusion(
+				Math.max(Math.ceil(post.resolution[0] / post.gridSize), 1),
+				Math.max(Math.ceil(post.resolution[1] / post.gridSize), 1)
+			);
+			gl.bindFramebuffer(gl.FRAMEBUFFER, diffusion.fbo);
+			gl.viewport(0, 0, diffusion.width, diffusion.height);
+			gl.useProgram(levelProgram.program);
+			bindSceneTexture(levelProgram);
+			gl.uniform2f(levelProgram.location('uResolution'), ...post.resolution);
+			gl.uniform1f(levelProgram.location('uGridSize'), post.gridSize);
+			gl.uniform1f(levelProgram.location('uPixelSizeRatio'), post.pixelSizeRatio);
+			gl.bindVertexArray(quadVao);
+			gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+			gl.bindBuffer(gl.PIXEL_PACK_BUFFER, diffusion.buffer);
+			gl.readPixels(0, 0, diffusion.width, diffusion.height, gl.RGBA, gl.UNSIGNED_BYTE, 0);
+			gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+			diffusion.sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+			diffusion.syncGeneration = diffusion.generation;
 		}
 
+		function bindSceneTexture(target: ReturnType<typeof compile>) {
+			gl.activeTexture(gl.TEXTURE0);
+			gl.bindTexture(gl.TEXTURE_2D, scene.texture);
+			gl.uniform1i(target.location('tDiffuse'), 0);
+		}
+
+		let pixelRatio = 1;
+		let clearColor: [number, number, number, number] = [0, 0, 0, 0];
+		let ringColor: Vec3 = [0, 0, 0];
+
 		function applyOptions() {
-			renderer.setClearColor(
-				new THREE.Color(config.background || '#000000'),
-				config.background ? 1 : 0
-			);
-			scene.environmentIntensity = config.environmentIntensity;
-			controls.enableRotate = config.orbit;
-			controls.enableZoom = config.zoom;
-			controls.autoRotate = config.autoRotate && !reducedMotion;
-			controls.autoRotateSpeed = config.autoRotateSpeed;
-			camera.fov = config.fov;
-			camera.updateProjectionMatrix();
-			floatGroup.position.x = config.xOffset;
-			floatGroup.position.y = MODEL_LIFT + config.yOffset;
-			const pr = renderer.getPixelRatio();
-			postMaterial.uniforms.uGridSize.value = Math.max(config.gridSize, 1) * pr;
-			postMaterial.uniforms.uPixelSizeRatio.value = Math.max(config.pixelSizeRatio, 1);
-			postMaterial.uniforms.uGrayscale.value = config.grayscale ? 1 : 0;
-			postMaterial.uniforms.uInvert.value = config.invert ? 1 : 0;
-			postMaterial.uniforms.uDither.value = config.dither ? 1 : 0;
-			postMaterial.uniforms.uMethod.value = methodIndex();
-			applyRoughness();
-			applyFit();
+			clearColor = config.background ? parseColor(config.background) : [0, 0, 0, 0];
+			const [r, g, b] = parseColor(config.highlight);
+			ringColor = [r * RING_INTENSITY, g * RING_INTENSITY, b * RING_INTENSITY];
+			post.gridSize = Math.max(config.gridSize, 1) * pixelRatio;
+			post.pixelSizeRatio = Math.max(config.pixelSizeRatio, 1);
+			post.grayscale = config.grayscale ? 1 : 0;
+			post.invert = config.invert ? 1 : 0;
+			post.dither = config.dither ? 1 : 0;
+			post.method = methodIndex();
 		}
 
 		function resize() {
 			const width = Math.max(canvas.clientWidth, 1);
 			const height = Math.max(canvas.clientHeight, 1);
-			const pr = Math.min(window.devicePixelRatio || 1, 2);
-			renderer.setPixelRatio(pr);
-			renderer.setSize(width, height, false);
+			pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+			canvas.width = Math.floor(width * pixelRatio);
+			canvas.height = Math.floor(height * pixelRatio);
 			const pixelSize = config.dither
-				? Math.max(config.gridSize, 1) * Math.max(config.pixelSizeRatio, 1) * pr
+				? Math.max(config.gridSize, 1) * Math.max(config.pixelSizeRatio, 1) * pixelRatio
 				: 1;
 			const targetScale = Math.min(1, 2 / pixelSize);
-			target.setSize(
-				Math.max(Math.round(width * pr * targetScale), 1),
-				Math.max(Math.round(height * pr * targetScale), 1)
+			resizeScene(
+				Math.max(Math.round(width * pixelRatio * targetScale), 1),
+				Math.max(Math.round(height * pixelRatio * targetScale), 1)
 			);
-			postMaterial.uniforms.uResolution.value.set(Math.round(width * pr), Math.round(height * pr));
-			postMaterial.uniforms.uGridSize.value = Math.max(config.gridSize, 1) * pr;
+			post.resolution = [Math.round(width * pixelRatio), Math.round(height * pixelRatio)];
+			post.gridSize = Math.max(config.gridSize, 1) * pixelRatio;
 			camera.aspect = width / height;
-			camera.updateProjectionMatrix();
 		}
 
 		const observer = new ResizeObserver(resize);
@@ -1140,66 +1319,143 @@ void main() {
 		applyOptions();
 		loadAsset();
 
+		let floatRotation: Vec3 = [0, 0, 0];
+		let floatY = MODEL_LIFT + config.yOffset;
+
+		function renderScene() {
+			gl.bindFramebuffer(gl.FRAMEBUFFER, scene.msaaFbo);
+			gl.viewport(0, 0, scene.width, scene.height);
+			gl.clearColor(...clearColor);
+			gl.clearDepth(1);
+			gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+			if (model) {
+				const view = lookAt(camera.position);
+				const viewProjection = multiply(perspective(config.fov, camera.aspect, 0.1, 200), view);
+				const modelMat = modelMatrix(
+					[config.xOffset, floatY, 0],
+					floatRotation,
+					config.scale / model.maxDim,
+					model.center
+				);
+				// Uniform scale, so the normal matrix is the normalized rotation part.
+				const s = config.scale / model.maxDim;
+				const normalMatrix = new Float32Array([
+					modelMat[0] / s, modelMat[1] / s, modelMat[2] / s,
+					modelMat[4] / s, modelMat[5] / s, modelMat[6] / s,
+					modelMat[8] / s, modelMat[9] / s, modelMat[10] / s
+				]);
+				const sh = new Float32Array(27);
+				for (let i = 0; i < 9; i++) {
+					for (let c = 0; c < 3; c++) sh[i * 3 + c] = ROOM_SH[i] + RING_SH[i] * ringColor[c];
+				}
+
+				gl.enable(gl.DEPTH_TEST);
+				gl.useProgram(meshProgram.program);
+				gl.uniformMatrix4fv(meshProgram.location('uModel'), false, modelMat);
+				gl.uniformMatrix4fv(meshProgram.location('uViewProjection'), false, viewProjection);
+				gl.uniformMatrix3fv(meshProgram.location('uNormalMatrix'), false, normalMatrix);
+				gl.uniform3fv(meshProgram.location('uSH'), sh);
+				gl.uniform3f(meshProgram.location('uCameraPosition'), ...camera.position);
+				gl.uniform1f(meshProgram.location('uEnvIntensity'), config.environmentIntensity);
+				gl.uniform1f(
+					meshProgram.location('uRoughness'),
+					config.roughness >= 0 ? config.roughness : BASE_ROUGHNESS
+				);
+				gl.activeTexture(gl.TEXTURE0);
+				gl.bindTexture(gl.TEXTURE_2D, model.texture);
+				gl.uniform1i(meshProgram.location('uMap'), 0);
+				gl.bindVertexArray(model.vao);
+				gl.drawArrays(gl.TRIANGLES, 0, model.count);
+				gl.disable(gl.DEPTH_TEST);
+			}
+
+			gl.bindFramebuffer(gl.READ_FRAMEBUFFER, scene.msaaFbo);
+			gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, scene.resolveFbo);
+			gl.blitFramebuffer(
+				0, 0, scene.width, scene.height,
+				0, 0, scene.width, scene.height,
+				gl.COLOR_BUFFER_BIT, gl.NEAREST
+			);
+			gl.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+			gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, null);
+		}
+
+		function renderPost() {
+			gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+			gl.viewport(0, 0, canvas.width, canvas.height);
+			gl.useProgram(postProgram.program);
+			bindSceneTexture(postProgram);
+			gl.activeTexture(gl.TEXTURE1);
+			gl.bindTexture(gl.TEXTURE_2D, diffusion.mask);
+			gl.uniform1i(postProgram.location('tMask'), 1);
+			gl.uniform2f(postProgram.location('uResolution'), ...post.resolution);
+			gl.uniform1f(postProgram.location('uGridSize'), post.gridSize);
+			gl.uniform1f(postProgram.location('uPixelSizeRatio'), post.pixelSizeRatio);
+			gl.uniform1f(postProgram.location('uGrayscale'), post.grayscale);
+			gl.uniform1f(postProgram.location('uInvert'), post.invert);
+			gl.uniform1f(postProgram.location('uDither'), post.dither);
+			gl.uniform1i(postProgram.location('uMethod'), post.method);
+			gl.bindVertexArray(quadVao);
+			gl.drawArrays(gl.TRIANGLES, 0, 3);
+			gl.activeTexture(gl.TEXTURE0);
+		}
+
 		let inView = true;
-		let loopRunning = false;
+		let frame = 0;
+		let lastTime = 0;
+		let elapsed = Math.random() * 100;
 
 		function tick(time: number) {
-			if (!inView) {
+			frame = 0;
+			if (!inView || disposed) {
 				lastTime = 0;
-				stopLoop();
 				return;
 			}
+			frame = requestAnimationFrame(tick);
 			const delta = lastTime ? Math.min((time - lastTime) / 1000, 0.1) : 0;
 			lastTime = time;
-			if (envDirty) {
-				envDirty = false;
-				refreshEnvironment();
-			}
-			controls.update();
+			updateCamera();
 
 			if (!reducedMotion) {
 				elapsed += delta * config.floatSpeed;
-				floatGroup.rotation.x = (Math.cos(elapsed / 4) / 8) * config.rotationIntensity;
-				floatGroup.rotation.y = (Math.sin(elapsed / 4) / 8) * config.rotationIntensity;
-				floatGroup.rotation.z = (Math.sin(elapsed / 4) / 20) * config.rotationIntensity;
-				floatGroup.position.y =
+				floatRotation = [
+					(Math.cos(elapsed / 4) / 8) * config.rotationIntensity,
+					(Math.sin(elapsed / 4) / 8) * config.rotationIntensity,
+					(Math.sin(elapsed / 4) / 20) * config.rotationIntensity
+				];
+				floatY =
 					MODEL_LIFT + config.yOffset + (Math.sin(elapsed / 1.5) / 10) * config.floatIntensity;
+			} else {
+				floatY = MODEL_LIFT + config.yOffset;
 			}
 
-			renderer.setRenderTarget(target);
-			renderer.render(scene, camera);
+			renderScene();
 			if (config.dither && config.method === 'floyd') updateDiffusion();
-			renderer.setRenderTarget(null);
-			renderer.render(postScene, postCamera);
+			renderPost();
 		}
 
 		function startLoop() {
-			if (loopRunning || !inView || disposed) return;
-			loopRunning = true;
-			renderer.setAnimationLoop(tick);
+			if (frame || !inView || disposed) return;
+			frame = requestAnimationFrame(tick);
 		}
 
 		function stopLoop() {
-			if (!loopRunning) return;
-			loopRunning = false;
-			renderer.setAnimationLoop(null);
+			if (!frame) return;
+			cancelAnimationFrame(frame);
+			frame = 0;
+			lastTime = 0;
 		}
 
 		const viewObserver =
 			typeof IntersectionObserver !== 'undefined'
 				? new IntersectionObserver((entries) => {
 						inView = entries[entries.length - 1]?.isIntersecting ?? true;
-						if (inView) {
-							startLoop();
-						} else {
-							stopLoop();
-						}
+						if (inView) startLoop();
+						else stopLoop();
 					})
 				: null;
 		viewObserver?.observe(canvas);
-
-		let lastTime = 0;
-		let elapsed = Math.random() * 100;
 
 		startLoop();
 
@@ -1218,15 +1474,13 @@ void main() {
 					return;
 				}
 
-				const previousHighlight = config.highlight;
 				const previousDistance = config.cameraDistance;
 				Object.assign(config, next);
-				if (config.highlight !== previousHighlight) envDirty = true;
 				if (config.cameraDistance !== previousDistance) {
-					camera.position.copy(CAMERA_DIR).multiplyScalar(config.cameraDistance);
+					camera.position = CAMERA_DIR.map((c) => c * config.cameraDistance) as Vec3;
 				}
-				applyOptions();
 				resize();
+				applyOptions();
 				loadAsset();
 				startLoop();
 			},
@@ -1238,18 +1492,22 @@ void main() {
 				observer.disconnect();
 				viewObserver?.disconnect();
 				motionQuery.removeEventListener('change', onMotionChange);
-				controls.dispose();
+				canvas.removeEventListener('pointerdown', onPointerDown);
+				canvas.removeEventListener('pointermove', onPointerMove);
+				canvas.removeEventListener('pointerup', onPointerUp);
+				canvas.removeEventListener('pointercancel', onPointerUp);
+				canvas.removeEventListener('wheel', onWheel);
+				canvas.removeEventListener('contextmenu', onContextMenu);
 				clearModel();
-				if (roomScene) disposeObject(roomScene);
-				envTarget?.dispose();
-				pmrem.dispose();
-				draco.dispose();
-				target.dispose();
 				releaseDiffusion();
-				levelMaterial.dispose();
-				postGeometry.dispose();
-				postMaterial.dispose();
-				renderer.dispose();
+				gl.deleteTexture(scene.texture);
+				for (const fbo of [scene.msaaFbo, scene.resolveFbo, diffusion.fbo]) gl.deleteFramebuffer(fbo);
+				gl.deleteRenderbuffer(scene.color);
+				gl.deleteRenderbuffer(scene.depth);
+				gl.deleteBuffer(diffusion.buffer);
+				gl.deleteBuffer(quadBuffer);
+				gl.deleteVertexArray(quadVao);
+				for (const { program } of [meshProgram, postProgram, levelProgram]) gl.deleteProgram(program);
 			}
 		};
 	}

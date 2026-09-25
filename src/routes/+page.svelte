@@ -202,7 +202,7 @@
 		{ title: 'Attended Imagine Cup South Africa', year: '2009', highlight: false }
 	];
 
-	// three.js is ~500 KB and the plane only shows at lg+, so load it on demand.
+	// The plane only shows at lg+, so its WebGL code loads on demand.
 	let DitheredObject = $state<typeof DitheredObjectComponent | null>(null);
 
 	onMount(() => {
