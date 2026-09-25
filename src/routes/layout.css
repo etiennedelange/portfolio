@@ -272,17 +272,6 @@ html.dark .dm-toggle .icon-moon {
 	cursor: pointer;
 }
 
-/* ── Scroll progress bar ──────────────────────────────────── */
-.scroll-progress {
-	position: absolute;
-	top: 0;
-	left: 0;
-	height: 3px;
-	background-color: var(--c-accent);
-	transition: width 0.1s linear, background-color 0.6s ease;
-	pointer-events: none;
-}
-
 /* ── Portrait interaction modes ───────────────────────────── */
 .portrait-frame {
 	cursor: pointer;

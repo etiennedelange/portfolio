@@ -22,7 +22,6 @@
 	let grainOpacity = $state(0.35);
 	let portraitReady = $state(false);
 	let terminalOpen = $state(false);
-	let scrollProgress = $state(0);
 	let footerSecretVisible = $state(false);
 	let portraitMode = $state<0 | 1 | 2 | 3>(0);
 	let portraitCycled = $state(false);
@@ -236,8 +235,6 @@
 
 		// Scroll listener
 		const handleScroll = () => {
-			const maxScroll = document.body.scrollHeight - window.innerHeight;
-			scrollProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
 			if (
 				!footerSecretVisible &&
 				window.scrollY + window.innerHeight >= document.body.scrollHeight - 4
@@ -454,7 +451,6 @@
 			</div>
 		</div>
 	{/if}
-	<div class="scroll-progress" style:width="{scrollProgress * 100}%"></div>
 </header>
 
 <main>
