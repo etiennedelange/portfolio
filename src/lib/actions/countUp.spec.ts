@@ -71,4 +71,41 @@ describe('countUp action', () => {
     action?.destroy?.();
     expect(disconnectMock).toHaveBeenCalled();
   });
+
+  it('shows final value without animating once the reveal has played', async () => {
+    vi.stubGlobal('sessionStorage', undefined);
+    vi.resetModules();
+    const { countUp: freshCountUp } = await import('$lib/actions/countUp');
+
+    freshCountUp(makeNode(), { target: '15+' });
+    intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+
+    observeMock.mockClear();
+    const node = makeNode();
+    freshCountUp(node, { target: '6' });
+    expect(node.textContent).toBe('6');
+    expect(observeMock).not.toHaveBeenCalled();
+  });
+
+  it('skips the reveal after a reload in the same tab session', async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal('sessionStorage', {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+    });
+
+    vi.resetModules();
+    const first = await import('$lib/actions/countUp');
+    first.countUp(makeNode(), { target: '15+' });
+    intersectionCallback?.([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+
+    // Simulate a reload: fresh module state, same sessionStorage
+    vi.resetModules();
+    const reloaded = await import('$lib/actions/countUp');
+    observeMock.mockClear();
+    const node = makeNode();
+    reloaded.countUp(node, { target: '15+' });
+    expect(node.textContent).toBe('15+');
+    expect(observeMock).not.toHaveBeenCalled();
+  });
 });

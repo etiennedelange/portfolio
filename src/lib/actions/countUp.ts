@@ -1,5 +1,29 @@
 import type { Action } from 'svelte/action';
 
+// The reveal plays once per browser tab session: not on client-side navigation
+// and not on reload. Browsers don't expose whether a reload was "hard", so a
+// reload of any kind skips it. The module flag covers storage being unavailable.
+const STORAGE_KEY = 'countUpPlayed';
+let hasPlayed = false;
+
+function readPlayed(): boolean {
+  if (hasPlayed) return true;
+  try {
+    return sessionStorage.getItem(STORAGE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function markPlayed() {
+  hasPlayed = true;
+  try {
+    sessionStorage.setItem(STORAGE_KEY, '1');
+  } catch {
+    // storage blocked; the module flag still prevents replays this page load
+  }
+}
+
 export const countUp: Action<HTMLElement, { target: number | string; duration?: number }> = (
   node,
   params
@@ -15,6 +39,7 @@ export const countUp: Action<HTMLElement, { target: number | string; duration?: 
   function animate() {
     if (fired) return;
     fired = true;
+    markPlayed();
 
     if (!isNumeric) {
       node.textContent = '';
@@ -45,7 +70,7 @@ export const countUp: Action<HTMLElement, { target: number | string; duration?: 
   const reduceMotion =
     typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  if (typeof IntersectionObserver !== 'undefined' && !reduceMotion) {
+  if (typeof IntersectionObserver !== 'undefined' && !reduceMotion && !readPlayed()) {
     node.textContent = isNumeric ? '0' + (match?.[2] ?? '') : '';
     observer = new IntersectionObserver(
       (entries) => { if (entries[0].isIntersecting) animate(); },
