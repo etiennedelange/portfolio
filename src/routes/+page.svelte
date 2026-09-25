@@ -16,7 +16,6 @@
 	const sectionNo = (n: number) => String(hasProjects ? n + 1 : n).padStart(2, '0');
 
 	let menuOpen = $state(false);
-	let scrolled = $state(false);
 	let isDark = $state(browser && document.documentElement.classList.contains('dark'));
 	let testHour = $state<number | null>(null);
 	let sliderVisible = $state(false);
@@ -237,7 +236,6 @@
 
 		// Scroll listener
 		const handleScroll = () => {
-			scrolled = window.scrollY > 40;
 			const maxScroll = document.body.scrollHeight - window.innerHeight;
 			scrollProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
 			if (
@@ -249,6 +247,8 @@
 			}
 		};
 		window.addEventListener('scroll', handleScroll, { passive: true });
+		// Sync with the restored scroll position on reload, which may not fire a scroll event
+		handleScroll();
 
 		return () => {
 			window.removeEventListener('scroll', handleScroll);
@@ -308,11 +308,7 @@
 </svelte:head>
 
 <!-- NAV -->
-<header
-	class="fixed top-0 left-0 right-0 z-50 transition-all duration-200"
-	style:background-color={scrolled ? 'var(--c-bg)' : 'transparent'}
-	style:border-bottom={scrolled ? '2px solid var(--c-ink)' : 'none'}
->
+<header class="site-header fixed top-0 left-0 right-0 z-50">
 	<nav class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
 		<div class="logo-wrap">
 			<a

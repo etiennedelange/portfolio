@@ -59,10 +59,6 @@ html.dark {
 	box-sizing: border-box;
 }
 
-html {
-	scroll-behavior: smooth;
-}
-
 body {
 	font-family: var(--font-sans);
 	background-color: var(--c-bg);
@@ -376,15 +372,47 @@ html.dark .dm-toggle .icon-moon {
 
 /* ── Reduced motion ───────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-	html {
-		scroll-behavior: auto;
-	}
-
 	*,
 	*::before,
 	*::after {
 		animation-duration: 0.01ms !important;
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
+	}
+}
+
+/* ── Site header ──────────────────────────────────────────── */
+/* Solid once the page is scrolled. Driven by scroll position in CSS where supported, so the
+   header is correct on first paint (incl. restored scroll on reload) without waiting for JS. */
+.site-header {
+	background-color: transparent;
+	border-bottom: 2px solid transparent;
+}
+
+@keyframes site-header-solid {
+	to {
+		background-color: var(--c-bg);
+		border-bottom-color: var(--c-ink);
+	}
+}
+
+@supports (animation-timeline: scroll()) {
+	.site-header {
+		/* animation-timeline must follow the shorthand, which resets it */
+		animation: site-header-solid 1ms linear both;
+		animation-timeline: scroll(root block);
+		animation-range: 0 40px;
+	}
+}
+
+/* Fallback (e.g. Firefox): data-scrolled / data-nav-anim are set by the inline script in app.html */
+@supports not (animation-timeline: scroll()) {
+	html[data-scrolled] .site-header {
+		background-color: var(--c-bg);
+		border-bottom-color: var(--c-ink);
+	}
+
+	html[data-nav-anim] .site-header {
+		transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
 	}
 }

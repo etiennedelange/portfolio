@@ -33,6 +33,26 @@
 				L = 0.2126*L[0] + 0.7152*L[1] + 0.0722*L[2];
 				document.documentElement.style.setProperty('--c-on-accent', (L+0.05)/0.0533 >= 1.05/(L+0.05) ? '#0a0a0a' : '#ffffff');
 			})();
+
+			// Fallback for browsers without CSS scroll-driven animations (see .site-header in layout.css):
+			// track scroll before hydration so a restored scroll position on reload shows the solid
+			// header immediately instead of waiting for the app to mount.
+			(function () {
+				if (window.CSS && CSS.supports('animation-timeline: scroll()')) return;
+				var root = document.documentElement;
+				function sync() { root.toggleAttribute('data-scrolled', scrollY > 40); }
+				sync();
+				addEventListener('scroll', sync, { passive: true });
+				addEventListener('pageshow', sync);
+
+				// Only animate the header once the user interacts, not during scroll restoration
+				var evs = ['wheel', 'touchstart', 'keydown', 'pointerdown'];
+				function arm() {
+					root.setAttribute('data-nav-anim', '');
+					evs.forEach(function (e) { removeEventListener(e, arm); });
+				}
+				evs.forEach(function (e) { addEventListener(e, arm, { passive: true }); });
+			})();
 		</script>
 		%sveltekit.head%
 	</head>
