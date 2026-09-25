@@ -7,7 +7,7 @@
 	import { countUp } from '$lib/actions/countUp';
 	import { stamp } from '$lib/actions/stamp';
 	import Terminal from '$lib/components/Terminal.svelte';
-	import DitheredObject from '$lib/components/DitheredObject.svelte';
+	import type DitheredObjectComponent from '$lib/components/DitheredObject.svelte';
 
 	let { data } = $props();
 
@@ -202,8 +202,20 @@
 		{ title: 'Attended Imagine Cup South Africa', year: '2009', highlight: false }
 	];
 
+	// three.js is ~500 KB and the plane only shows at lg+, so load it on demand.
+	let DitheredObject = $state<typeof DitheredObjectComponent | null>(null);
+
 	onMount(() => {
 		portraitReady = true;
+
+		const lg = matchMedia('(min-width: 1024px)');
+		const loadPlane = () => {
+			if (!lg.matches) return;
+			lg.removeEventListener('change', loadPlane);
+			import('$lib/components/DitheredObject.svelte').then((m) => (DitheredObject = m.default));
+		};
+		if (lg.matches) loadPlane();
+		else lg.addEventListener('change', loadPlane);
 
 		// Console easter egg
 		console.log(
@@ -238,7 +250,10 @@
 		};
 		window.addEventListener('scroll', handleScroll, { passive: true });
 
-		return () => window.removeEventListener('scroll', handleScroll);
+		return () => {
+			window.removeEventListener('scroll', handleScroll);
+			lg.removeEventListener('change', loadPlane);
+		};
 	});
 
 	function toggleDark() {
@@ -511,7 +526,16 @@
 						onkeydown={(e) => e.key === 'Enter' && cyclePortrait()}
 					>
 						<div class="portrait-duo" class:transitions-on={portraitReady}>
-							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
+							<img
+								src="/portrait-545.webp"
+								srcset="/portrait-280.webp 280w, /portrait-545.webp 545w"
+								sizes="(min-width: 1280px) 256px, 224px"
+								alt="Etienne de Lange"
+								class="portrait-img"
+								width="545"
+								height="553"
+								fetchpriority="high"
+							/>
 						</div>
 						<div class="portrait-grain" style:opacity={grainOpacity}></div>
 						<div class="portrait-lines"></div>
@@ -565,7 +589,16 @@
 						onkeydown={(e) => e.key === 'Enter' && cyclePortrait()}
 					>
 						<div class="portrait-duo" class:transitions-on={portraitReady}>
-							<img src="/image.png" alt="Etienne de Lange" class="portrait-img" width="545" height="553" fetchpriority="high" />
+							<img
+								src="/portrait-280.webp"
+								srcset="/portrait-280.webp 280w, /portrait-545.webp 545w"
+								sizes="160px"
+								alt="Etienne de Lange"
+								class="portrait-img"
+								width="545"
+								height="553"
+								loading="lazy"
+							/>
 						</div>
 						<div class="portrait-grain" style:opacity={grainOpacity}></div>
 						<div class="portrait-lines"></div>
@@ -699,7 +732,7 @@
 										rel="noopener noreferrer"
 										class="ml-auto text-sm font-bold underline decoration-2 underline-offset-4"
 										style="color: var(--c-ink); text-decoration-color: var(--c-accent);"
-									>Live →</a>
+									>Live<span class="sr-only"> site for {repo.name}</span> →</a>
 								{/if}
 							</div>
 						</div>
@@ -873,6 +906,7 @@
 			</div>
 		</div>
 
+		{#if DitheredObject}
 		<DitheredObject
 			class="hidden lg:block w-64 h-64"
 			src="/paper-plane.svg"
@@ -890,6 +924,9 @@
 			autoRotate={false}
 			cameraDistance={4.2}
 		/>
+		{:else}
+			<div class="hidden lg:block w-64 h-64" aria-hidden="true"></div>
+		{/if}
 	</div>
 </section>
 

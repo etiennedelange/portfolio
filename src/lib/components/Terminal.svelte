@@ -206,7 +206,7 @@
     border: 2px solid var(--c-ink);
     box-shadow: 6px 6px 0 var(--c-shadow);
     background-color: var(--c-bg);
-    font-family: 'Space Grotesk', monospace;
+    font-family: 'Space Grotesk Variable', monospace;
     outline: none;
   }
 
